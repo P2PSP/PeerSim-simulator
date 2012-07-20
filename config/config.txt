@@ -1,0 +1,60 @@
+# network size
+SIZE 100
+
+# parameters of periodic execution
+CYCLES 1000
+CYCLE SIZE*1000
+
+# parameters of message transfer
+# delay values here are relative to cycle length, in percentage,
+# eg 50 means half the cycle length, 200 twice the cycle length, etc.
+MINDELAY 0
+MAXDELAY 0
+# drop is a probability, 0<=DROP<=1
+DROP 0
+
+random.seed 9098797865656766578567
+network.size SIZE
+simulation.endtime CYCLE*CYCLES
+simulation.logtime CYCLE
+
+################### protocols ===========================
+protocol.0 peersim.core.IdleProtocol
+protocol.0.step CYCLE
+
+protocol.1 src.Source
+protocol.1.linkable 0
+protocol.1.step CYCLE
+protocol.1.transport tr
+
+protocol.2 src.Peer
+protocol.2.linkable 0
+protocol.2.step CYCLE
+protocol.2.transport tr
+
+protocol.urt UniformRandomTransport
+protocol.urt.mindelay (CYCLE*MINDELAY)/100
+protocol.urt.maxdelay (CYCLE*MAXDELAY)/100
+
+protocol.tr UnreliableTransport
+protocol.tr.transport urt
+protocol.tr.drop DROP
+
+################### initialization ======================
+init.1 src.SourceInitializer
+init.1.protocol 1
+
+init.2 src.PeerInitializer
+init.2.protocol 2
+
+init.sch1 CDScheduler
+init.sch1.protocol 1
+init.sch1.randstart
+
+init.sch2 CDScheduler
+init.sch2.protocol 2
+init.sch2.randstart
+
+
+################ control ==============================
+
