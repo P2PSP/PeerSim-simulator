@@ -1,4 +1,4 @@
-package src;
+package sim.src;
 
 import peersim.cdsim.CDProtocol;
 import peersim.config.FastConfig;

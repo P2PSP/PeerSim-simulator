@@ -1,4 +1,4 @@
-package src;
+package sim.src;
 
 public class Packet 
 {
