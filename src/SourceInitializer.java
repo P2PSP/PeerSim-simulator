@@ -13,7 +13,6 @@ public class SourceInitializer implements Control
 	public SourceInitializer(String prefix)
 	{
 		pid = Configuration.getPid(prefix + "." + PAR_PROT);
-		int a = 0;
 	}
 
 	
