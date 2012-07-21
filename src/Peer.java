@@ -20,14 +20,7 @@ public class Peer implements CDProtocol, EDProtocol, Linkable
 	
 	@Override
 	public void nextCycle(Node node, int pid) 
-	{
-		/*
-		if(isPeer == false)
-			return;
-		
-		System.out.println("I'm node "+node.getIndex());
-		*/		
-	}
+	{	}
 
 	
 	

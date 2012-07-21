@@ -15,8 +15,9 @@ public class Source implements CDProtocol, Linkable
 	public static  int pidSource;
 	
 	public boolean isSource = false;
-	private int packetIndex = 0;
-	private int cycle = 0;
+	private int packetIndex = 1;
+	private int recipientIndex = 1;
+	private int cycle = 1;
 	
 	/*
 	 * Empty constructor
@@ -26,20 +27,20 @@ public class Source implements CDProtocol, Linkable
 	@Override
 	public void nextCycle(Node node, int pid) 
 	{
+		Node recipient;
+		
 		if(isSource == false)
 			return;
 		
-		System.out.println("Cycle " + cycle +". This is SOURCE sending packets.");
-		Node recipient;
-		for(int i = 1; i < Network.size(); i++)
-		{
-			recipient = Network.get(i);
-			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex), Peer.pidPeer);
-			packetIndex++;
-		}
+		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
+		recipient = Network.get(recipientIndex);
+		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex), Peer.pidPeer);
+		packetIndex++;
+		recipientIndex = (recipientIndex+1) % Network.size();
+		if(recipientIndex==0)
+			recipientIndex++;
+				
 		cycle++;
-		
-		System.out.println(Network.size()+" packets sent");
 	}
 
 	/*
