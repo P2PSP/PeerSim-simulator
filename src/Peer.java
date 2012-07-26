@@ -54,19 +54,18 @@ public class Peer implements CDProtocol, EDProtocol, Linkable
 		{
 			System.out.print(", resending to "+ packet.resendTo +"...");
 			Node recipient = Network.get(packet.resendTo);
-			//now resend to recipient the incoming packet, which is also the new "lastPacket"
+			//now resend to recipient the incoming packet, which is also the new "lastPacketFromSource"
 			lastPacketFromSource = packet;
 			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
 		}
 		else	//the sender is not the source
 		{
 			Node recipient = Network.get(packet.sender);
-			if(lastPacketFromSource != null && recipient.getIndex() != lastPacketFromSource.resendTo)
+			if(lastPacketFromSource != null && recipient.getIndex() != lastPacketFromSource.resendTo) //last condition is used to prevent an endless "ping-pong"
 			{
 				System.out.print(", sending packet "+lastPacketFromSource.index+" back");
-				//now first send the last packet and then replace "lastPacket"
+				//now first send the last packet from source
 				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
-				//lastPacket = packet;
 			}
 		}
 		System.out.println();
@@ -74,7 +73,7 @@ public class Peer implements CDProtocol, EDProtocol, Linkable
 
 	
 	/**
-	 * The last packet from anyone is resent to everyone
+	 * The last packet FROM ANYONE is resent to everyone
 	 */
 	//@Override
 	public void processEvent2(Node node, int pid, Object event)
@@ -99,7 +98,7 @@ public class Peer implements CDProtocol, EDProtocol, Linkable
 		else	//the sender is not the source
 		{
 			Node recipient = Network.get(packet.sender);
-			if(lastPacket != null && recipient.getIndex() != lastPacket.resendTo)
+			if(lastPacket != null && recipient.getIndex() != lastPacket.resendTo)	//last condition is used to prevent an endless "ping-pong"
 			{
 				System.out.print(", sending packet "+lastPacket.index+" back");
 				//now first send the last packet and then replace "lastPacket"
