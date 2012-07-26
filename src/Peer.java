@@ -1,6 +1,7 @@
 package sim.src;
 
 import peersim.cdsim.CDProtocol;
+import peersim.config.Configuration;
 import peersim.config.FastConfig;
 import peersim.core.CommonState;
 import peersim.core.Linkable;
@@ -15,51 +16,99 @@ public class Peer implements CDProtocol, EDProtocol, Linkable
 	public static int pidPeer;
 	
 	public boolean isPeer = false;
+	
+	private Packet lastPacketFromSource = null;
+	
+	private Packet lastPacket = null;
+	
+	private int bufferSize;
+	public Packet[] buffer;
+	
 
-	public Peer(String prefix){	}
+	public Peer(String prefix)
+	{
+		bufferSize = Configuration.getInt(prefix+".buffer_size", 32);
+		buffer = new Packet[bufferSize];
+	}
 	
 	@Override
 	public void nextCycle(Node node, int pid) 
 	{	}
-
 	
-	
-	@Override
-	public void processEvent(Node node, int pid, Object event) 
+	/**
+	 * The last packet FROM THE SOURCE from anyone is resent to everyone
+	 */
+//	@Override
+	public void processEvent(Node node, int pid, Object event)
 	{
 		if(event instanceof Packet == false)
 			return;
 		
-		Packet packet = (Packet)event;
+		Packet packet = (Packet) event;
+		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received from "+packet.sender);
+
+		//store in buffer
+		buffer[packet.index%buffer.length] = packet;
 		
-		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received");
-		
-		if(packet.source == SourceInitializer.sourceIndex)
+		if(packet.sender == SourceInitializer.sourceIndex)	//the sender is the source
 		{
-			System.out.print(", resending...");
-			Node recipient;
-			//change the source by ourselves so the recipient does not resend it
-			packet.source = node.getIndex();
-			//now send to the rest of peers
-			for(int i = 1; i < node.getIndex() && i < Network.size(); i++)
+			System.out.print(", resending to "+ packet.resendTo +"...");
+			Node recipient = Network.get(packet.resendTo);
+			//now resend to recipient the incoming packet, which is also the new "lastPacket"
+			lastPacketFromSource = packet;
+			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
+		}
+		else	//the sender is not the source
+		{
+			Node recipient = Network.get(packet.sender);
+			if(lastPacketFromSource != null && recipient.getIndex() != lastPacketFromSource.resendTo)
 			{
-				recipient = Network.get(i);
-				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, packet, Peer.pidPeer);
+				System.out.print(", sending packet "+lastPacketFromSource.index+" back");
+				//now first send the last packet and then replace "lastPacket"
+				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
+				//lastPacket = packet;
 			}
-			for(int i = node.getIndex()+1; i < Network.size(); i++)
-			{
-				recipient = Network.get(i);
-				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, packet, Peer.pidPeer);
-			}	
 		}
 		System.out.println();
-		
 	}
 
+	
+	/**
+	 * The last packet from anyone is resent to everyone
+	 */
+	//@Override
+	public void processEvent2(Node node, int pid, Object event)
+	{
+		if(event instanceof Packet == false)
+			return;
+		
+		Packet packet = (Packet) event;
+		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received from "+packet.sender);
 
-	
-	
-	
+		//store in buffer
+		buffer[packet.index%buffer.length] = packet;
+		
+		if(packet.sender == SourceInitializer.sourceIndex)	//the sender is the source
+		{
+			System.out.print(", resending to "+ packet.resendTo +"...");
+			Node recipient = Network.get(packet.resendTo);
+			//now resend to recipient the incoming packet, which is also the new "lastPacket"
+			lastPacket = packet;
+			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacket.index, null), Peer.pidPeer);
+		}
+		else	//the sender is not the source
+		{
+			Node recipient = Network.get(packet.sender);
+			if(lastPacket != null && recipient.getIndex() != lastPacket.resendTo)
+			{
+				System.out.print(", sending packet "+lastPacket.index+" back");
+				//now first send the last packet and then replace "lastPacket"
+				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacket.index, null), Peer.pidPeer);
+				lastPacket = packet;
+			}
+		}
+		System.out.println();
+	}
 	
 	
 	

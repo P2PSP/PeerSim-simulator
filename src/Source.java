@@ -28,18 +28,25 @@ public class Source implements CDProtocol, Linkable
 	public void nextCycle(Node node, int pid) 
 	{
 		Node recipient;
+		int nextNodeIndex;
 		
 		if(isSource == false)
 			return;
 		
 		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
 		recipient = Network.get(recipientIndex);
-		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex), Peer.pidPeer);
+		//next node in the list
+		nextNodeIndex = (recipientIndex+1) % Network.size();
+		if(nextNodeIndex==0)
+			nextNodeIndex++;
+		
+		//send packet to this node, with nextNodeIndex in the resendTo field
+		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex, nextNodeIndex), Peer.pidPeer);
+		
+		//for next cycle
 		packetIndex++;
-		recipientIndex = (recipientIndex+1) % Network.size();
-		if(recipientIndex==0)
-			recipientIndex++;
-				
+		recipientIndex = nextNodeIndex;
+		
 		cycle++;
 	}
 

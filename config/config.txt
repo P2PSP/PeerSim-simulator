@@ -1,8 +1,8 @@
 # network size
-SIZE 100
+SIZE 10
 
 # parameters of periodic execution
-CYCLES 10000000
+CYCLES 50
 CYCLE SIZE*10
 
 # parameters of message transfer
@@ -28,6 +28,7 @@ protocol.1.step CYCLE
 protocol.1.transport tr
 
 protocol.2 sim.src.Peer
+protocol.2.buffer_size 32
 protocol.2.linkable 0
 protocol.2.step CYCLE
 protocol.2.transport tr
@@ -58,3 +59,6 @@ init.sch2.randstart
 
 ################ control ==============================
 
+control.0 sim.src.PeerObserver
+control.0.protocol 2
+control.0.step CYCLE*1
