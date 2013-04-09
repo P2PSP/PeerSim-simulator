@@ -42,8 +42,9 @@ from colors import Color
 import sys
 import socket
 import struct
-#import time
+import time
 import argparse
+import weibull
 
 # }}}
 
@@ -622,7 +623,22 @@ def send_a_block_to_the_player():
 
     # }}}
 
-while player_connected and not blocks_exhausted:
+'''jalvaro: Time issues, related to churn'''
+#returns true if the present moment in time is beyond death_time
+def time_to_die(death_time):
+    return (death_time-time.mktime(time.localtime())<=0)
+    
+current_time = time.localtime()
+death_time = time.mktime(current_time) + weibull.weibull_random(0.4,5)
+'''end of time issues'''
+
+while player_connected and not time_to_die(death_time):
+
+    if __debug__:
+        current_time = time.localtime()
+        logger.debug(Color.green+'Current time is '+str(current_time.tm_hour)+':'+str(current_time.tm_min)+':'+str(current_time.tm_sec)+Color.none)
+        logger.debug(Color.green+'Scheduled death time is '+str(time.localtime(death_time).tm_hour)+':'+str(time.localtime(death_time).tm_min)+':'+str(time.localtime(death_time).tm_sec)+Color.none)
+
     block_number = receive_and_feed()
     if block_number>=0:
         if (block_number % 256) == 0:
