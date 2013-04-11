@@ -31,7 +31,9 @@
 # ./splitter.py
 # ./gatherer.py --splitter_hostname="localhost"
 # vlc http://localhost:9999 &
-# ./peer.py --splitter_hostname="localhost"
+# ./peer.py --splitter_hostname="localhost" 
+# or
+# ./peer.py --splitter_hostname="localhost" --no_player --logging_levelname=DEBUG
 # vlc http://localhost:9998 &
 
 # {{{ Imports
@@ -44,7 +46,7 @@ import socket
 import struct
 import time
 import argparse
-import weibull
+import churn
 
 # }}}
 
@@ -85,6 +87,10 @@ logging_levelname = 'INFO' # 'DEBUG' (default), 'INFO' (cyan),
 
 logging_level = logging.INFO
 
+logging_filename = ''
+
+weibull_scale = 0   #for churn. 0 means no churn.
+
 # {{{ Args handing
 
 print 'Argument List:', str(sys.argv)
@@ -104,6 +110,9 @@ parser.add_argument('--listening_port',
 parser.add_argument('--logging_levelname',
                     help='Name of the channel served by the streaming source. (Default = "{}")'.format(logging_levelname))
 
+parser.add_argument('--logging_filename',
+                    help='Name of the logging output file. (Default = "{})'.format(logging_filename))
+
 parser.add_argument('--number_of_blocks',
                     help='Maximun number of blocks to receive from the splitter. (Default = {}). If not specified, the peer runs forever.'.format(number_of_blocks))
 
@@ -120,6 +129,8 @@ parser.add_argument('--splitter_port',
                     help='Listening port of the splitter. (Default = {})'.format(splitter_port))
 
 parser.add_argument('--no_player', help='Do no send the stream to a player.', action="store_true")
+
+parser.add_argument('--churn', help='Scale parameter for the Weibull function, 0 means no churn. (Default = {})'.format(weibull_scale))
 
 args = parser.parse_known_args()[0]
 if args.buffer_size:
@@ -138,6 +149,8 @@ if args.logging_levelname == 'ERROR':
     logging_level = logging.ERROR
 if args.logging_levelname == 'CRITICAL':
     logging_level = logging.CRITICAL
+if args.logging_filename:
+    logging_filename = args.logging_filename
 if args.number_of_blocks:
     number_of_blocks = int(args.number_of_blocks)
 if args.source_hostname:
@@ -150,6 +163,8 @@ if args.splitter_port:
     splitter_port = args.splitter_port
 if args.no_player:
     _PLAYER_ = False
+if args.churn:
+    weibull_scale = int(args.churn)
 
 # }}}
 
@@ -178,6 +193,14 @@ ch.setFormatter(formatter)
 
 # add ch to logger
 logger.addHandler(ch)
+
+#jalvaro
+# create file handler and set the level
+if args.logging_filename:
+    fh = logging.FileHandler('./output/peer-'+str(os.getpid()))
+    fh.setLevel(logging_level)
+    #add fh to logger
+    logger.addHandler(fh)
 
 # }}}
 
@@ -623,21 +646,17 @@ def send_a_block_to_the_player():
 
     # }}}
 
-'''jalvaro: Time issues, related to churn'''
-#returns true if the present moment in time is beyond death_time
-def time_to_die(death_time):
-    return (death_time-time.mktime(time.localtime())<=0)
     
-current_time = time.localtime()
-death_time = time.mktime(current_time) + weibull.weibull_random(0.4,5)
-'''end of time issues'''
+#get a death time
+#death_time = churn.new_death_time(20)
+death_time = churn.new_death_time(weibull_scale)
 
-while player_connected and not time_to_die(death_time):
+while player_connected and not churn.time_to_die(death_time):
 
-    if __debug__:
+    if __debug__ and death_time != churn.NEVER:
         current_time = time.localtime()
-        logger.debug(Color.green+'Current time is '+str(current_time.tm_hour)+':'+str(current_time.tm_min)+':'+str(current_time.tm_sec)+Color.none)
-        logger.debug(Color.green+'Scheduled death time is '+str(time.localtime(death_time).tm_hour)+':'+str(time.localtime(death_time).tm_min)+':'+str(time.localtime(death_time).tm_sec)+Color.none)
+        logger.debug(Color.green+'Current time is '+str(current_time.tm_hour).zfill(2)+':'+str(current_time.tm_min).zfill(2)+':'+str(current_time.tm_sec).zfill(2)+Color.none)
+        logger.debug(Color.green+'Scheduled death time is '+str(time.localtime(death_time).tm_hour).zfill(2)+':'+str(time.localtime(death_time).tm_min).zfill(2)+':'+str(time.localtime(death_time).tm_sec).zfill(2)+Color.none)
 
     block_number = receive_and_feed()
     if block_number>=0:
@@ -647,8 +666,8 @@ while player_connected and not time_to_die(death_time):
         if _PLAYER_:
             send_a_block_to_the_player()
             block_to_play = (block_to_play + 1) % buffer_size
-    elif block_number == -2:
-        break
+    #elif block_number == -2:    #this stops the peer after only one cluster timeout!
+    #    break
 
 logger.info(Color.cyan + 'Goodbye!' + Color.none)
 goodbye = ''

@@ -51,6 +51,11 @@ import argparse
 
 # }}}
 
+total_blocks = 1    #starts in 1 to avoid div-by-zero issues when calculating the percentage
+total_blocks = long(total_blocks)   #to declare it long. Alternatively: total_blocks = 0L
+loss_percentage = 0
+loss_percentage = float(loss_percentage)  #the same with the percentage of loss 
+
 IP_ADDR = 0
 PORT = 1
 
@@ -220,12 +225,14 @@ class get_the_state(Thread):
                     connection.sendall('Number of peers = ' + str(len(peer_list)) + '\n')
                     counter = 0
                     for p in peer_list:
+                        loss_percentage = float(unreliability[p]*100)/float(total_blocks)
                         connection.sendall(str(counter) +
                                            '\t' + str(p) +
-                                           '\t' + 'unreliability=' + str(unreliability[p]) +
+                                           '\t' + 'unreliability=' + str(unreliability[p]) +' ({:.2}%)'.format(loss_percentage)+
                                            '\t' + 'complains=' + str(complains[p]) +
                                            '\n')
                         counter += 1
+                    connection.sendall('\n Total blocks sent = '+str(total_blocks))
                     connection.sendall(Color.cyan + '\nEnter a line that beggings with "q" to exit or any other key to continue\n' + Color.none)
                     message = connection.recv(2)
 
@@ -414,7 +421,7 @@ class listen_to_the_cluster(Thread):
                     peer_list.remove(sender)
                     logger.info(Color.cyan +
                                 str(sender) +
-                                ' has leaved the cluster' +
+                                ' has left the cluster' +
                                 Color.none)
                 except:
                     logger.warning(Color.blue +
@@ -436,7 +443,10 @@ class listen_to_the_cluster(Thread):
                             ' sent to ' +
                             str(destination) +
                             Color.none)
-
+                
+                unreliability[destination] += 1
+                '''jalvaro: i'm commenting this so peers are not expeled
+                #if the sender of the complaint is the gatherer then the splitter removes the infractor inmediately
                 if sender == gatherer:
                     try:
                         peer_list.remove(destination)
@@ -449,12 +459,12 @@ class listen_to_the_cluster(Thread):
                                     Color.none)
                     except:
                         pass
-
+                
                 else:
                     try:
                         unreliability[destination] += 1
                         if unreliability[destination] > len(peer_list):
-                            # Too much complains about an unsuportive peer
+                            # Too many complains about an unsuportive peer
                             peer_list.remove(destination)
                             del unreliability[destination]
                             del complains[destination]
@@ -466,30 +476,6 @@ class listen_to_the_cluster(Thread):
 
                     except:
                         pass
-
-                '''
-                if sender != gatherer:
-                    destination = destination_of_block[lost_block]
-                    if destination in peer_list:
-                        if destination in unreliability:
-                            unreliability[destination] += 1
-                            if unreliability[destination] > 100:#(len(peer_list)/2):
-                                # Too much complains about an unsuportive peer
-                                peer_list.remove(destination)
-                                #remove(destination_of_block[lost_block]) # Ojo
-                                del unreliability[destination]
-                                del complains[destination]
-
-                    try:
-                        complains[sender] += 1
-                        if complains[sender] > 1000:
-                            # Too much complains of a peevish peer
-                            peer_list.remove(sender)
-                            #remove(sender) # Ojo
-                            del complains[sender]
-                            del unreliability[sender]
-                    except:
-                        logger.warning('Unknown sender' + str(sender))
                 '''
 
     # }}}
@@ -606,11 +592,16 @@ while True:
     peer_index = (peer_index + 1) % len_peer_list
 
     block_number = (block_number + 1) % 65536
+    
+    total_blocks += 1
 
+    #decrementamos la no-fiabilidad y las quejas cada 256 paquetes
+    '''jalvaro: i'm commenting this to get the real unreliability in a simulation
     if (block_number % 256) == 0:
         for i in unreliability:
             unreliability[i] /= 2
         for i in complains:
             complains[i] /= 2
+    '''
 
 # }}}

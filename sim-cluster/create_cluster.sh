@@ -72,17 +72,23 @@ while getopts "b:u:c:w:a:p:l:s:v:?" opt; do
     esac
 done
 
+#clear previous output files
+rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/*
+
 #xterm -e "./splitter.py --block_size=$block_size --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --listening_port=$splitter_port" &
 
-xterm -e "./splitter.py --source_hostname=localhost" &
+#start the splitter
+xterm -l -lf ./output/salida_splitter.txt -e "./splitter.py --source_hostname=localhost" &
 
 sleep 1
 
+#start the gatherer
 #xterm -e "./gatherer.py --buffer_size=$buffer_size --listening_port=$[splitter_port+1] --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --splitter_hostname=$splitter_hostname --splitter_port=$splitter_port" &
-
-xterm -e "./gatherer.py --splitter_hostname=localhost" &
+xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost" &
 
 sleep 1
 
+#start the player
 vlc http://localhost:9999 &
 
+#start all peers
