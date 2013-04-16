@@ -28,8 +28,8 @@
 
 # Try running me as:
 #
-# ./splitter.py
-# ./gatherer.py --splitter_hostname="localhost"
+# ./splitter.py --source_hostname="localhost"
+# ./gatherer.py --splitter_hostname="localhost" --source_hostname="localhost"
 # vlc http://localhost:9999 &
 
 # {{{ Imports
@@ -57,16 +57,19 @@ listening_port = 9999
 
 # Number of bytes of the stream's header
 header_size = 1024*20*10
+#header_size = 1024*20
 
 # Splitter endpoint
-splitter_hostname = '150.214.150.68'
+#splitter_hostname = '150.214.150.68'
+splitter_hostname = 'localhost'
 splitter_port = 4552
 
 # Estas cuatro variables las debería indicar el splitter
 channel = '134.ogg'
 block_size = 1024
 # Source's end-point
-source_hostname = '150.214.150.68'
+#source_hostname = '150.214.150.68'
+source_hostname = 'localhost'
 source_port = 4551
 
 logging_levelname = 'INFO' # 'DEBUG' (default), 'INFO' (cyan),

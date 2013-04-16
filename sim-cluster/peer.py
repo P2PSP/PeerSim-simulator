@@ -28,12 +28,10 @@
 
 # Try running me as:
 #
-# ./splitter.py
-# ./gatherer.py --splitter_hostname="localhost"
+# ./splitter.py --source_hostname="localhost"
+# ./gatherer.py --splitter_hostname="localhost" --source_hostname="localhost"
 # vlc http://localhost:9999 &
-# ./peer.py --splitter_hostname="localhost" 
-# or
-# ./peer.py --splitter_hostname="localhost" --no_player --logging_levelname=DEBUG
+# ./peer.py --splitter_hostname="localhost" --source_hostname="localhost"
 # vlc http://localhost:9998 &
 
 # {{{ Imports
@@ -62,14 +60,16 @@ buffer_size = 32
 listening_port = 9998
 
 # Splitter endpoint
-splitter_hostname = '150.214.150.68'
+#splitter_hostname = '150.214.150.68'
+splitter_hostname = 'localhost'
 splitter_port = 4552
 
 # Number of bytes of the stream's header
 header_size = 1024*20*10
 
 # Estas cuatro variables las debería indicar el splitter
-source_hostname = '150.214.150.68'
+#source_hostname = '150.214.150.68'
+source_hostname = 'localhost'
 source_port = 4551
 channel = '134.ogg'
 block_size = 1024
@@ -201,6 +201,7 @@ if args.logging_filename:
     fh.setLevel(logging_level)
     #add fh to logger
     logger.addHandler(fh)
+
 
 # }}}
 
@@ -645,19 +646,19 @@ def send_a_block_to_the_player():
     received[block_to_play] = False
 
     # }}}
-
     
 #get a death time
 #death_time = churn.new_death_time(20)
 death_time = churn.new_death_time(weibull_scale)
 
+#while player_connected and not blocks_exhausted:
 while player_connected and not churn.time_to_die(death_time):
-
+    
     if __debug__ and death_time != churn.NEVER:
         current_time = time.localtime()
         logger.debug(Color.green+'Current time is '+str(current_time.tm_hour).zfill(2)+':'+str(current_time.tm_min).zfill(2)+':'+str(current_time.tm_sec).zfill(2)+Color.none)
         logger.debug(Color.green+'Scheduled death time is '+str(time.localtime(death_time).tm_hour).zfill(2)+':'+str(time.localtime(death_time).tm_min).zfill(2)+':'+str(time.localtime(death_time).tm_sec).zfill(2)+Color.none)
-
+    
     block_number = receive_and_feed()
     if block_number>=0:
         if (block_number % 256) == 0:
@@ -666,7 +667,7 @@ while player_connected and not churn.time_to_die(death_time):
         if _PLAYER_:
             send_a_block_to_the_player()
             block_to_play = (block_to_play + 1) % buffer_size
-    #elif block_number == -2:    #this stops the peer after only one cluster timeout!
+    #elif block_number == -2:    #this stops the peer after only one cluster timeout
     #    break
 
 logger.info(Color.cyan + 'Goodbye!' + Color.none)

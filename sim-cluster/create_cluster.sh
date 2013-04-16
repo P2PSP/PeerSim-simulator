@@ -84,7 +84,7 @@ sleep 1
 
 #start the gatherer
 #xterm -e "./gatherer.py --buffer_size=$buffer_size --listening_port=$[splitter_port+1] --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --splitter_hostname=$splitter_hostname --splitter_port=$splitter_port" &
-xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost" &
+xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost" &
 
 sleep 1
 

@@ -61,7 +61,8 @@ PORT = 1
 
 block_size = 1024
 channel = '134.ogg'
-source_hostname = '150.214.150.68'
+#source_hostname = '150.214.150.68'
+source_hostname = 'localhost'
 source_port = 4551
 listening_port = 4552
 
@@ -443,10 +444,9 @@ class listen_to_the_cluster(Thread):
                             ' sent to ' +
                             str(destination) +
                             Color.none)
-                
                 unreliability[destination] += 1
-                '''jalvaro: i'm commenting this so peers are not expeled
-                #if the sender of the complaint is the gatherer then the splitter removes the infractor inmediately
+'''jalvaro: i'm commenting this so peers are not expeled
+#if the sender of the complaint is the gatherer then the splitter removes the infractor inmediately
                 if sender == gatherer:
                     try:
                         peer_list.remove(destination)
@@ -459,7 +459,7 @@ class listen_to_the_cluster(Thread):
                                     Color.none)
                     except:
                         pass
-                
+
                 else:
                     try:
                         unreliability[destination] += 1
@@ -476,8 +476,8 @@ class listen_to_the_cluster(Thread):
 
                     except:
                         pass
-                '''
-
+'''
+                
     # }}}
 
 listen_to_the_cluster().setDaemon(True)
@@ -594,9 +594,9 @@ while True:
     block_number = (block_number + 1) % 65536
     
     total_blocks += 1
-
-    #decrementamos la no-fiabilidad y las quejas cada 256 paquetes
-    '''jalvaro: i'm commenting this to get the real unreliability in a simulation
+    
+    '''
+    #decrement unreliability and complaints after every 256 packets
     if (block_number % 256) == 0:
         for i in unreliability:
             unreliability[i] /= 2
