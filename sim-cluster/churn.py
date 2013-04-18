@@ -3,6 +3,7 @@ import time
 import datetime
 import sys
 
+#maximum possible time
 NEVER = sys.float_info.max
 
 def weibull_random(shape, scale):

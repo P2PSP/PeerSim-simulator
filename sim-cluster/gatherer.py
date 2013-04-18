@@ -41,6 +41,7 @@ import sys
 import socket
 import struct
 import argparse
+import time
 
 # }}}
 
@@ -56,8 +57,8 @@ buffer_size = 32
 listening_port = 9999
 
 # Number of bytes of the stream's header
-header_size = 1024*20*10
-#header_size = 1024*20
+#header_size = 1024*20*10
+header_size = 1024*20
 
 # Splitter endpoint
 #splitter_hostname = '150.214.150.68'
@@ -151,16 +152,17 @@ logger.setLevel(logging_level)
 # create console handler and set the level
 ch = logging.StreamHandler()
 ch.setLevel(logging_level)
-
 # create formatter
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
 # add formatter to ch
 ch.setFormatter(formatter)
-
 # add ch to logger
 logger.addHandler(ch)
 
+#jalvaro: create a file handler for the critical level, to store times. I know I shouldn't be using critical :D
+fh_timing = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/gatherer')
+fh_timing.setLevel(logging.CRITICAL)
+logger.addHandler(fh_timing)
 # }}}
 
 source = (source_hostname, source_port)
@@ -353,6 +355,16 @@ while not received[(receive_a_block() + buffer_size/2) % buffer_size]:
     pass
 '''
 
+'''
+#Fill half the buffer
+'''
+#WARNING!!!
+#time.clock() measures the time spent by the process (so the time spent waiting for an execution slot in the processor is left out)
+#time.time() measures wall time, this means execution time plus waiting time
+
+#start_buffering_time = time.clock()
+start_buffering_time = time.time()
+
 block_number = receive()
 while block_number<=0:
     block_number = receive()
@@ -361,10 +373,21 @@ for x in xrange(buffer_size/2):
     while receive()<=0:
         pass
 
-# {{{ debug
-if __debug__:
-    logger.debug(str(cluster_sock.getsockname()) + ' buffering done')
-# }}}
+#end_buffering_time = time.clock()
+end_buffering_time = time.time()
+buffering_time = end_buffering_time - start_buffering_time
+
+
+logger.info(str(cluster_sock.getsockname()) + ' buffering done')
+
+#timing info
+logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
+logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
+
+'''
+#End buffering
+'''
+
 
 def send_a_block_to_the_player():
     # {{{

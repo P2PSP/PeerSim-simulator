@@ -6,7 +6,7 @@ set -x
 
 #number_of_blocks=100
 number_of_peers=2
-churn_scale = 0
+churn_scale=0
 
 usage() {
     echo $0
@@ -50,6 +50,7 @@ done
 
 #clear previous output files
 rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/*
+rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/*
 
 #xterm -e "./splitter.py --block_size=$block_size --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --listening_port=$splitter_port" &
 
@@ -75,6 +76,7 @@ do
 #    ./peer.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=0 &
     ./peer.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} &
     let COUNTER=COUNTER+1 
+#    sleep 0.5
 done
 #}
 set +x

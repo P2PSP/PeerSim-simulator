@@ -65,7 +65,8 @@ splitter_hostname = 'localhost'
 splitter_port = 4552
 
 # Number of bytes of the stream's header
-header_size = 1024*20*10
+#header_size = 1024*20*10
+header_size = 1024*20
 
 # Estas cuatro variables las debería indicar el splitter
 #source_hostname = '150.214.150.68'
@@ -197,11 +198,14 @@ logger.addHandler(ch)
 #jalvaro
 # create file handler and set the level
 if args.logging_filename:
-    fh = logging.FileHandler('./output/peer-'+str(os.getpid()))
+    fh = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/peer-'+str(os.getpid()))
     fh.setLevel(logging_level)
     #add fh to logger
     logger.addHandler(fh)
-
+#jalvaro: create a file handler for the critical level, to store times. I know I shouldn't be using critical :D
+fh_timing = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/peer-'+str(os.getpid()))
+fh_timing.setLevel(logging.CRITICAL)
+logger.addHandler(fh_timing)
 
 # }}}
 
@@ -383,7 +387,7 @@ def retrieve_the_list_of_peers():
         peer_list.append(peer)
         peer_insolidarity[peer] = 0
 
-        cluster_sock.sendto('', peer) # Send a empty block (this
+#        cluster_sock.sendto('', peer) # Send a empty block (this
                                       # should be fast)
 
         number_of_peers -= 1
@@ -548,7 +552,7 @@ def receive_and_feed():
 
             return block_number
             # }}}
-        else:
+        elif message=='':
             # {{{ Received a control block
 
             if sender not in peer_list:
@@ -587,6 +591,16 @@ logger.info(Color.cyan +
             ' receiving data ...' +
             Color.none)
 
+'''
+#Fill half the buffer
+'''
+#WARNING!!!
+#time.clock() measures the time spent by the process (so the time spent waiting for an execution slot in the processor is left out)
+#time.time() measures wall time, this means execution time plus waiting time
+
+#start_buffering_time = time.clock()
+start_buffering_time = time.time()
+
 block_number = receive_and_feed()
 while block_number<=0:
     block_number = receive_and_feed()
@@ -594,10 +608,22 @@ block_to_play = block_number % buffer_size
 for x in xrange(buffer_size/2):
     while receive_and_feed()<=0:
         pass
-# {{{ debug
-if __debug__:
-    logger.debug(str(cluster_sock.getsockname()) + ' buffering done')
+
+#end_buffering_time = time.clock()
+end_buffering_time = time.time()
+buffering_time = end_buffering_time - start_buffering_time
+
+logger.info(str(cluster_sock.getsockname()) + ' buffering done')
+logger.info('NUM_PEERS '+str(len(peer_list)))
+
+logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
+logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
+logger.critical('NUM_PEERS '+str(len(peer_list)))
 # }}}
+
+'''
+#End buffering
+'''
 
 player_connected = True
 
@@ -651,6 +677,9 @@ def send_a_block_to_the_player():
 #death_time = churn.new_death_time(20)
 death_time = churn.new_death_time(weibull_scale)
 
+'''
+#Once the buffer is half-filled, then start operating normally
+'''
 #while player_connected and not blocks_exhausted:
 while player_connected and not churn.time_to_die(death_time):
     
@@ -669,7 +698,9 @@ while player_connected and not churn.time_to_die(death_time):
             block_to_play = (block_to_play + 1) % buffer_size
     #elif block_number == -2:    #this stops the peer after only one cluster timeout
     #    break
-
+    logger.debug('NUM PEERS '+str(len(peer_list)))
+    
+            
 logger.info(Color.cyan + 'Goodbye!' + Color.none)
 goodbye = ''
 cluster_sock.sendto(goodbye, splitter)
