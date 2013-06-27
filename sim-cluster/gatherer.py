@@ -112,6 +112,7 @@ parser.add_argument('--splitter_port',
 args = parser.parse_known_args()[0]
 if args.buffer_size:
     buffer_size = int(args.buffer_size)
+    print("Buffer size "+str(buffer_size))
 if args.channel:
     channel = args.channel
 if args.listening_port:
@@ -159,11 +160,15 @@ ch.setFormatter(formatter)
 # add ch to logger
 logger.addHandler(ch)
 
+'''
 #jalvaro: create a file handler for the critical level, to store times. I know I shouldn't be using critical :D
 fh_timing = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/gatherer')
 fh_timing.setLevel(logging.CRITICAL)
 logger.addHandler(fh_timing)
+'''
 # }}}
+
+logger.info("Buffer size: "+str(buffer_size)+" blocks")
 
 source = (source_hostname, source_port)
 splitter = (splitter_hostname, splitter_port)
@@ -301,6 +306,8 @@ received = [False]*buffer_size
 
 def receive():
     # {{{
+    
+    global splitter
 
     try:
         message, sender = cluster_sock.recvfrom(struct.calcsize("H1024s"))
@@ -311,11 +318,18 @@ def receive():
 
         # {{{ debug
         if __debug__:
-            logger.debug('{}'.format(cluster_sock.getsockname()) +
-                          " <- " +
-                          '{}'.format(block_number) +
-                          ' ' +
-                          '{}'.format(sender))
+            if sender == splitter:
+                logger.debug('{}'.format(cluster_sock.getsockname()) +
+                             " <- " +
+                             '{}'.format(block_number) +
+                             ' ' +
+                             '{}'.format(sender) + " (splitter)")
+            else:
+                logger.debug('{}'.format(cluster_sock.getsockname()) +
+                             " <- " +
+                             '{}'.format(block_number) +
+                             ' ' +
+                             '{}'.format(sender) + " (peer)")
         # }}}
 
         return block_number
@@ -381,8 +395,8 @@ buffering_time = end_buffering_time - start_buffering_time
 logger.info(str(cluster_sock.getsockname()) + ' buffering done')
 
 #timing info
-logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
-logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
+#logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
+#logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
 
 '''
 #End buffering

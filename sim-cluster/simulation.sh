@@ -7,6 +7,7 @@ set -x
 #number_of_blocks=100
 number_of_peers=2
 churn_scale=0
+buffer_size=32
 
 usage() {
     echo $0
@@ -15,12 +16,13 @@ usage() {
 #    echo "  [-b (number of blocks, $number_of_blocks by default)]"
     echo "  [-n (number of peers, $number_of_peers by default)]"
     echo "  [-c (churn scale, $churn_scale by default, meaning no churn)]"
+    echo "  [-s (buffer size in blocks, $buffer_size by default)]"
     echo "  [-? (help)]"
 }
 
 echo $0: parsing: $@
 
-while getopts "b:n:c:?" opt; do
+while getopts "b:n:c:s:?" opt; do
     case ${opt} in
 	b)
 	    number_of_blocks="${OPTARG}"
@@ -30,6 +32,9 @@ while getopts "b:n:c:?" opt; do
 	    ;;
 	c)
 	    churn_scale="${OPTARG}"
+	    ;;
+	s)
+	    buffer_size="${OPTARG}"
 	    ;;
 	?)
 	    usage
@@ -52,31 +57,26 @@ done
 rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/*
 rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/*
 
-#xterm -e "./splitter.py --block_size=$block_size --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --listening_port=$splitter_port" &
-
 #start the splitter
-xterm -l -lf ./output/salida_splitter.txt -e "./splitter.py --source_hostname=localhost" &
+xterm -l -lf ./output/salida_splitter.txt -e "./splitter-x.py --source_hostname=localhost --logging_level=DEBUG --buffer_size=$buffer_size" &
 
 sleep 1
 
 #start the gatherer
-#xterm -e "./gatherer.py --buffer_size=$buffer_size --listening_port=$[splitter_port+1] --channel=$source_channel --source_hostname=$source_hostname --source_port=$source_port --splitter_hostname=$splitter_hostname --splitter_port=$splitter_port" &
-xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost" &
+xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=DEBUG --buffer_size=$buffer_size" &
 
-sleep 1
+sleep 1s
 
 #start the player
 vlc http://localhost:9999 &
 
-sleep 10
+sleep 5s
 #x(){
 COUNTER=0
 while [ $COUNTER -lt $number_of_peers ];
 do
-#    ./peer.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=0 &
-    ./peer.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} &
+    ./peer-x.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} --buffer_size=${buffer_size} &
     let COUNTER=COUNTER+1 
-#    sleep 0.5
 done
 #}
 set +x

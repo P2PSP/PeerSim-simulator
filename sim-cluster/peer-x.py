@@ -34,12 +34,14 @@
 # ./peer.py --splitter_hostname="localhost" --source_hostname="localhost"
 # vlc http://localhost:9998 &
 
-# {{{ Imports
+'''
+# VERSIÓN bloque-exclusivo DEL PEER, no hay mensajes de hola por parte de los peers. 
+# El peer recibe un bloque de stream exclusivo a su llegada, y lo reenvía a todos a modo de "hola". 
+# Con esto prentendemos acelerar el proceso de buffering y saturar menos la red.
+# Usar con splitter-x.py y gatherer.py
+'''
 
-'''
-# VERSIÓN BÁSICA DEL PEER, no hay mensajes de hola por parte de los peers.
-# Usar con splitter.py y gatherer.py (sin números)
-'''
+# {{{ Imports
 
 import os
 import logging
@@ -86,6 +88,11 @@ _PLAYER_ = True
 
 # Maximun number of blocks to receive from the splitter
 number_of_blocks = 999999999
+
+# The buffer of stream blocks
+blocks = [None]*buffer_size
+received = [False]*buffer_size
+
 
 
 logging_levelname = 'INFO' # 'DEBUG' (default), 'INFO' (cyan),
@@ -217,7 +224,7 @@ logger.addHandler(fh_timing)
 
 # }}}
 
-
+logger.info("Buffer size: "+str(buffer_size)+" blocks")
 
 source = (source_hostname, source_port)
 splitter = (splitter_hostname, splitter_port)
@@ -347,9 +354,41 @@ peer_insolidarity = {}
 
 gatherer = None
 
+def retrieve_first_block():
+    global block_number
+    global buffer_size
+    global blocks
+    
+    message = splitter_sock.recv(struct.calcsize("H1024s"))
+    print("First block recevied from splitter. "+str(len(message))+" bytes")
+
+    number, block = struct.unpack("H1024s", message)
+    block_number = socket.ntohs(number)
+    if __debug__:
+        logger.debug("First block number: "+str(block_number))
+        logger.debug("First block in buffer position: "+str(block_number%buffer_size))
+    # {{{ debug
+    '''
+    if __debug__:
+        logger.debug('{}'.format(cluster_sock.getsockname()) +
+                     " <- " +
+                     '{}'.format(block_number) +
+                     ' ' +
+                     '{}'.format(sender))
+    '''
+    # }}}
+    blocks[block_number % buffer_size] = block
+    received[block_number % buffer_size] = True
+    return message
+    
+#first_payload contains (block_number,block)
+first_payload = retrieve_first_block()
+
 def retrieve_the_list_of_peers():
     # {{{
     global gatherer
+    global first_payload
+    
     number_of_peers = socket.ntohs(
         struct.unpack("H",splitter_sock.recv(struct.calcsize("H")))[0])
 
@@ -368,32 +407,28 @@ def retrieve_the_list_of_peers():
     IP_addr = socket.inet_ntoa(IP_addr)
     port = socket.ntohs(port)
     gatherer = (IP_addr, port)
+    cluster_sock.sendto(first_payload, gatherer)
     while number_of_peers > 0:
         message = splitter_sock.recv(struct.calcsize("4sH"))
         IP_addr, port = struct.unpack("4sH", message)
         IP_addr = socket.inet_ntoa(IP_addr)
         port = socket.ntohs(port)
         peer = (IP_addr, port)
-
         # {{{ debug
-
         if __debug__:
             logger.debug('{}'.format(splitter_sock.getsockname()) +
                          ' <- ' +
                          '{}'.format(splitter_sock.getpeername()) +
                          ' Peer ' +
                          str(peer))
-
         # }}}
-
         peer_list.append(peer)
         peer_insolidarity[peer] = 0
-
-        cluster_sock.sendto('', peer) # Send a empty block (this
+#       cluster_sock.sendto('', peer) # Send a empty block (this
                                       # should be fast)
-
+        #send the block
+        cluster_sock.sendto(first_payload, peer)
         number_of_peers -= 1
-
     # }}}
 
 retrieve_the_list_of_peers()
@@ -408,8 +443,8 @@ splitter_sock.close()
 # the blocks buffer that stores the received blocks (2) the received
 # buffer that stores if a block has been received or not.
 # }}}
-blocks = [None]*buffer_size
-received = [False]*buffer_size
+#blocks = [None]*buffer_size
+#received = [False]*buffer_size
 
 # True if the peer has received "number_of_blocks" blocks.
 blocks_exhausted = False
@@ -450,6 +485,7 @@ def receive_and_feed():
             if sender == splitter:
                 # {{{ Send the previously received block in burst mode.
 
+                time.sleep(0.01)
                 cluster_sock.sendto(message, gatherer)
                 # {{{ debug
                 if __debug__:
@@ -703,6 +739,8 @@ while player_connected and not churn.time_to_die(death_time):
         if (block_number % 256) == 0:
             for i in peer_insolidarity:
                 peer_insolidarity[i] /= 2
+        if not received[block_to_play]:
+            print(str(cluster_sock.getsockname())+"Block "+str(block_to_play)+" missed")
         if _PLAYER_:
             send_a_block_to_the_player()
             block_to_play = (block_to_play + 1) % buffer_size

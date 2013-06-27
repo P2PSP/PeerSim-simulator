@@ -37,8 +37,8 @@
 # {{{ Imports
 
 '''
-# VERSIÓN BÁSICA DEL PEER, no hay mensajes de hola por parte de los peers.
-# Usar con splitter.py y gatherer.py (sin números)
+# VERSIÓN 2 DEL PEER, el peer manda mensajes de hola para presentarse ante los demás peers del cluster.
+# Usar con splitter.py y gatherer.py
 '''
 
 import os
@@ -97,7 +97,7 @@ logging_level = logging.INFO
 logging_filename = ''
 
 console_logging = False
-file_logging = True
+file_logging = False
 
 weibull_scale = 0   #for churn. 0 means no churn.
 
@@ -145,7 +145,6 @@ parser.add_argument('--churn', help='Scale parameter for the Weibull function, 0
 args = parser.parse_known_args()[0]
 if args.buffer_size:
     buffer_size = int(args.buffer_size)
-    print("Buffer size "+str(buffer_size))
 if args.channel:
     channel = args.channel
 if args.listening_port:
@@ -205,7 +204,7 @@ if console_logging == True:
 
 #jalvaro
 # create file handler and set the level
-if args.logging_filename and file_logging == True:
+if args.logging_filename and file_logging == False:
     fh = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/peer-'+str(os.getpid()))
     fh.setLevel(logging_level)
     #add fh to logger
@@ -288,8 +287,8 @@ def communicate_the_header():
 
     # }}}
 
-    if __debug__:
-        logger.info(Color.cyan  + str(source_sock.getsockname()) + ' done' + Color.none)
+        if __debug__:
+            logger.info(Color.cyan  + str(source_sock.getsockname()) + ' done' + Color.none)
     
     source_sock.close()
     # }}}
@@ -389,6 +388,7 @@ def retrieve_the_list_of_peers():
         peer_list.append(peer)
         peer_insolidarity[peer] = 0
 
+        #say hello to other peer
         cluster_sock.sendto('', peer) # Send a empty block (this
                                       # should be fast)
 
@@ -461,16 +461,8 @@ def receive_and_feed():
 
                 # }}}
 
-                if __debug__:
-                        logger.debug("Sending block "+str(block_number)+" in burst mode")
-                        logger.debug("Counter value: "+str(counter))
-
                 while( (counter < len(peer_list)) & (counter > 0)):
                     peer = peer_list[counter]
-
-                    if __debug__:
-                        logger.debug("Counter: "+str(counter)+", Peer"+str(peer))
-
                     cluster_sock.sendto(last, peer)
     #                if not is_player_working:
     #                    cluster_sock.sendto('', peer)
@@ -537,9 +529,9 @@ def receive_and_feed():
                                  '{}'.format(peer))
 
                 # }}}
-                
+
                 counter += 1        
-            
+
                 # }}}
 
             if args.number_of_blocks:
@@ -551,17 +543,17 @@ def receive_and_feed():
             return block_number
             # }}}
         elif message=='':
-            # {{{ Received a control block
+            # {{{ Received a control block: "hi"
 
             if sender not in peer_list:
                 peer_list.append(sender)
                 peer_insolidarity[sender] = 0
                 if __debug__:
                     logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' added by control block' + Color.none)
-            else:
-                peer_list.remove(sender)
-                if __debug__:
-                    logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' removed by control block' + Color.none)
+        elif message=='bye':
+            peer_list.remove(sender)
+            if __debug__:
+                logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' removed by control block' + Color.none)
             return -1
             # }}}
         # }}}
@@ -605,6 +597,7 @@ for x in range(block_to_play, block_to_play+(buffer_size/2)):
     if received[x%buffer_size] == False:
         num_errors_buf += 1
 
+
 '''
 block_number = receive_and_feed()
 while block_number<=0:
@@ -620,17 +613,18 @@ for x in xrange(buffer_size/2):
 end_buffering_time = time.time()
 buffering_time = end_buffering_time - start_buffering_time
 
-if __debug__:
-    logger.info(str(cluster_sock.getsockname()) + ' buffering done')
-    logger.info('NUM_PEERS '+str(len(peer_list)))
-    logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
-    logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
-    logger.critical('NUM_ERRORS_BUF '+str(error_counter))
-    percentage_errors_buf = float(error_counter*100)/float(buffer_size/2)
-    logger.critical('PERCENTAGE_ERRORS_BUF ' + str(percentage_errors_buf))
-    #logger.critical('PERCENTAGE_ERRORS_BUF {:.2}%'.format(percentage_errors_buf))
-    logger.critical('NUM_PEERS '+str(len(peer_list)))
-    # }}}
+logger.info(str(cluster_sock.getsockname()) + ' buffering done')
+logger.info('NUM_PEERS '+str(len(peer_list)))
+
+logger.critical('BUF_TIME '+str(buffering_time)+' secs')   #buffering time in SECONDS
+logger.critical('BUF_LEN '+str(buffer_size)+' bytes')
+logger.critical('NUM_ERRORS_BUF '+str(error_counter))
+percentage_errors_buf = float(error_counter*100)/float(buffer_size/2)
+logger.critical('PERCENTAGE_ERRORS_BUF ' + str(percentage_errors_buf))
+#logger.critical('PERCENTAGE_ERRORS_BUF {:.2}%'.format(percentage_errors_buf))
+logger.critical('NUM_PEERS '+str(len(peer_list)))
+# }}}
+
 
 '''
 #End buffering
@@ -713,7 +707,7 @@ while player_connected and not churn.time_to_die(death_time):
     
 if __debug__:
     logger.info(Color.cyan + 'Goodbye!' + Color.none)
-goodbye = ''
+goodbye = 'bye'
 cluster_sock.sendto(goodbye, splitter)
 for x in xrange(3):
     receive_and_feed()

@@ -32,6 +32,13 @@
 # xterm -e './gatherer.py --splitter_hostname="localhost"' &
 # vlc http://localhost:9999 &
 
+'''
+# VERSIÓN bloque-exclusivo DEL SPLITTER. 
+# El splitter envía un bloque de stream exclusivo a cada peer entrante. El peer reenvía dicho bloque a todos a modo de "hola". 
+# Con esto prentendemos acelerar el proceso de buffering y saturar menos la red.
+# Usar con peer-x.py y gatherer.py
+'''
+
 # {{{ imports
 
 import logging
@@ -59,6 +66,8 @@ loss_percentage = float(loss_percentage)  #the same with the percentage of loss
 IP_ADDR = 0
 PORT = 1
 
+
+buffer_size = 32    # Buffer size in the peers and the gatherer
 block_size = 1024
 channel = '134.ogg'
 #source_hostname = '150.214.150.68'
@@ -77,6 +86,9 @@ print 'Argument List:', str(sys.argv)
 
 parser = argparse.ArgumentParser(
     description='This is the splitter node of a P2PSP network.')
+
+parser.add_argument('--buffer_size',
+                    help='size of the video buffer in blocks'.format(buffer_size))
 
 parser.add_argument('--block_size',
                     help='Block size in bytes. (Default = {})'.format(block_size))
@@ -97,6 +109,9 @@ parser.add_argument('--listening_port',
                     help='Port to talk with the gatherer and peers. (Default = {})'.format(listening_port))
 
 args = parser.parse_known_args()[0]
+if args.buffer_size:
+    buffer_size = int(args.buffer_size)
+    print("Buffer size "+str(buffer_size))
 if args.block_size:
     block_size = int(args.block_size)
 if args.channel:
@@ -171,9 +186,6 @@ peer_list = []
 # The number of the last received block from the streaming server
 block_number = 0 
 
-# Buffer size in the peers and the gatherer
-buffer_size = 32
-
 # Used to find the peer to which a block has been sent
 destination_of_block = [('0.0.0.0',0) for i in xrange(buffer_size)]
 
@@ -188,8 +200,12 @@ peer_index = 0
 
 # A lock to perform mutual exclusion for accesing to the list of peers
 peer_list_lock = Lock()
+# A lock for source_sock
+source_sock_lock = Lock()
 
 gatherer = None
+
+logger.info("Buffer size: "+str(buffer_size)+" blocks")
 
 # {{{ Handle one telnet client
 
@@ -296,6 +312,15 @@ class handle_arrivals(Thread):
         #peer_connection_sock.bind(("", listening_port)) # Listen to any interface
         #peer_connection_sock.listen(5)
         #global peer_connection_sock
+        
+        #temp_peer_list = []
+        
+        global block_number
+        global total_blocks
+        global destination_of_block
+        global unreliability
+        global complains
+        
         while True:
             # {{{ Wait for the connection from the peer /PS0/
 
@@ -328,49 +353,90 @@ class handle_arrivals(Thread):
                              ' Sending the list of peers')
             # }}}
 
-            message = struct.pack("H", socket.htons(len(peer_list)))
-            peer_serve_socket.sendall(message)
-            message = struct.pack(
-                    "4sH", socket.inet_aton(gatherer[IP_ADDR]),
-                    socket.htons(gatherer[PORT]))
-            peer_serve_socket.sendall(message)
-            for p in peer_list:
-                message = struct.pack(
-                    "4sH", socket.inet_aton(p[IP_ADDR]),
-                    socket.htons(p[PORT]))
+            try:
+                block = receive_next_block()
+                
+                # {{{ debug
+                if __debug__:
+                    logger.debug('{}'.format(source_sock.getsockname()) +
+                     Color.green + ' <- ' + Color.none +
+                     '{}'.format(source_sock.getpeername()) + " (source)" +
+                     ' ' +
+                     '{}'.format(block_number))
+                # }}}
+
+
+                try:
+                    peer_list_lock.acquire()    #get the lock
+                    #temp_peer_list = copy.copy(peer_list)
+                    temp_peer_list = list(peer_list) #http://henry.precheur.org/python/copy_list
+                    
+                    peer_list.append(peer)
+                    temp_block_number = block_number    #for later use outside the critical secion
+                    block_number = (block_number + 1) % 65536 #update block number prematurely. This is so because we don't want to acquire the lock twice.
+                    total_blocks += 1
+                    destination_of_block[block_number % buffer_size] = peer
+                except Exception:
+                    print("Exception adding the peer to the peer list in handle arrivals")
+                finally:
+                    peer_list_lock.release()    #release the lock
+                    
+                if __debug__:
+                    #use block_number-1, since we updated block_number prematurely in the lock.
+                    logger.debug("First block sent to peer "+str(peer)+" : "+str(block_number-1))
+                    logger.debug("First block sent to peer "+str(peer)+" in buffer position : "+str((block_number-1)%buffer_size))
+                
+                unreliability[peer] = 0
+                complains[peer] = 0
+                         
+                #send the block
+                #message = struct.pack("H1024s", socket.htons(block_number-1), block) #use block_number-1, since we updated block_number prematurely in the lock.
+                message = struct.pack("H1024s", socket.htons(temp_block_number), block) 
                 peer_serve_socket.sendall(message)
 
-            # {{{ debug
+                #send the list of peers
+                message = struct.pack("H", socket.htons(len(temp_peer_list)))
+                peer_serve_socket.sendall(message)
+                message = struct.pack("4sH", socket.inet_aton(gatherer[IP_ADDR]),socket.htons(gatherer[PORT]))
+                peer_serve_socket.sendall(message)
+                for p in temp_peer_list:
+                    message = struct.pack("4sH", socket.inet_aton(p[IP_ADDR]),socket.htons(p[PORT]))
+                    peer_serve_socket.sendall(message)
+            
+                # {{{ debug
+    
+                if __debug__:
+                    logger.debug(str(len(temp_peer_list)) + ' peers sent (plus gatherer)')
+    
+                # }}}
+    
+                # }}}
+    
+                # {{{ Close the TCP socket with the peer/gatherer
+    
+                peer_serve_socket.close()
+    
+                # }}}
+    
+                # Then the first peer arrival, the first entry of the list
+                # of peers is replaced by the peer.
+                #if peer_list[0] == gatherer:
+                #    peer_list[0] = peer
+                #else:
+                #with peer_list_lock:
+                #peer_list_lock.acquire()
+                #peer_list.append(peer)
+                #peer_list_lock.release()
+                
+            
 
-            if __debug__:
-                logger.debug(str(len(peer_list)) + ' peers sent')
-
-            # }}}
-
-            # }}}
-
-            # {{{ Close the TCP socket with the peer/gatherer
-
-            peer_serve_socket.close()
-
-            # }}}
-
-            # Then the first peer arrival, the first entry of the list
-            # of peers is replaced by the peer.
-            #if peer_list[0] == gatherer:
-            #    peer_list[0] = peer
-            #else:
-            #with peer_list_lock:
-            #peer_list_lock.acquire()
-            peer_list.append(peer)
-            #peer_list_lock.release()
-            unreliability[peer] = 0
-            complains[peer] = 0
-
-            logger.info(Color.cyan +
+                logger.info(Color.cyan +
                         str(peer) +
                         ' has joined the cluster' +
                         Color.none)
+            except:
+                print("Exception in handle_arrivals")
+            
 
     # }}}
 
@@ -420,32 +486,27 @@ class listen_to_the_cluster(Thread):
             #if len(message) == 0:
             if message == 'bye':
                 try:
+                    peer_list_lock.acquire()    #get the lock
                     peer_list.remove(sender)
-                    logger.info(Color.cyan +
-                                str(sender) +
-                                ' has left the cluster' +
-                                Color.none)
+                    logger.info(Color.cyan + str(sender) + ' has left the cluster' + Color.none)
                 except:
-                    logger.warning(Color.blue +
-                                   'Received a googbye message from ' +
-                                   str(sender) +
-                                   ' which is not in the list of peers' +
-                                   Color.none)
+                    logger.warning(Color.blue + 'Received a googbye message from ' + str(sender) + ' which is not in the list of peers' + Color.none)
                     pass
+                finally:
+                    peer_list_lock.release()    #release the lock
             else:
                 # The sender of the packet complains and the packet
                 # comes with the index of a lost block
-                lost_block = struct.unpack("!H",message)[0]
-                destination = destination_of_block[lost_block]
+                try:
+                    peer_list_lock.acquire()    #get the lock
+                    lost_block = struct.unpack("!H",message)[0]
+                    destination = destination_of_block[lost_block]
 
-                logger.info(Color.cyan +
-                            str(sender) +
-                            ' complains about lost block ' +
-                            str(lost_block) +
-                            ' sent to ' +
-                            str(destination) +
-                            Color.none)
-                unreliability[destination] += 1
+                    logger.debug(Color.cyan + str(sender) + ' complains about lost block ' + str(lost_block) + ' sent to ' + str(destination) + Color.none)
+                    unreliability[destination] += 1
+                finally:
+                    peer_list_lock.release()    #release the lock
+                    
 '''jalvaro: i'm commenting this so peers are not expeled
 #if the sender of the complaint is the gatherer then the splitter removes the infractor inmediately
                 if sender == gatherer:
@@ -526,24 +587,28 @@ while True:
 
         global source_sock
 
-        block = source_sock.recv(block_size)
-        tries = 0
-        while len(block) < block_size:
-            tries += 1
-            if tries > 3:
-
-                # {{{ debug
-                if __debug__:
-                    logger.debug('GET')
-                # }}}
-
-                time.sleep(1)
-                source_sock.close()
-                source_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                source_sock.connect(source)
-                source_sock.sendall(GET_message)
-
-            block += source_sock.recv(1024-len(block))
+        source_sock_lock.acquire()  #get the lock
+        try:
+            block = source_sock.recv(block_size)
+            tries = 0
+            while len(block) < block_size:
+                tries += 1
+                if tries > 3:
+    
+                    # {{{ debug
+                    if __debug__:
+                        logger.debug('GET')
+                    # }}}
+    
+                    time.sleep(1)
+                    source_sock.close()
+                    source_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    source_sock.connect(source)
+                    source_sock.sendall(GET_message)
+    
+                block += source_sock.recv(1024-len(block))
+        finally:
+            source_sock_lock.release()  #release the lock
         return block
 
         # }}}
@@ -556,11 +621,52 @@ while True:
 
         logger.debug('{}'.format(source_sock.getsockname()) +
                      Color.green + ' <- ' + Color.none +
-                     '{}'.format(source_sock.getpeername()) +
+                     '{}'.format(source_sock.getpeername()) + " (source)" +
                      ' ' +
                      '{}'.format(block_number))
     # }}}
 
+    '''
+    Nuevo código
+    '''
+    peer_list_lock.acquire()    #get peer_list_lock
+    try:
+        len_peer_list = len(peer_list)
+        try:
+            peer = peer_list[peer_index]
+            #logger.debug('{}'.format(cluster_sock.getsockname())+Color.green+' -> '+Color.none+ str(peer)+' (peer) '+str(block_number))
+        except:
+            try:
+                peer = peer_list[0]
+                #logger.debug('{}'.format(cluster_sock.getsockname())+Color.green+' -> '+Color.none+ str(peer)+' (peer) '+str(block_number))
+            except:
+                peer = gatherer
+                len_peer_list = 1
+                #logger.debug('{}'.format(cluster_sock.getsockname())+Color.green+' -> '+Color.none+ str(peer)+' (gatherer) '+str(block_number))
+        destination_of_block[block_number % buffer_size] = peer
+        peer_index = (peer_index + 1) % len_peer_list
+        temp_block_number = block_number #for later use outside the critical section
+        block_number = (block_number + 1) % 65536   #update block number prematurely. This is so because we don't want to acquire the lock twice.
+        total_blocks += 1
+    finally:
+        peer_list_lock.release()    # release peer_list_lock
+
+    #message = struct.pack("H1024s", socket.htons(block_number-1), block)    #use block_number-1, since we updated block_number prematurely in the lock.
+    message = struct.pack("H1024s", socket.htons(temp_block_number), block)    
+    cluster_sock.sendto(message, peer)
+    
+    #use block_number-1, since we updated block_number prematurely in the lock.
+    if peer == gatherer:
+        logger.debug('{}'.format(cluster_sock.getsockname())+Color.green+' -> '+Color.none+ str(peer)+' (gatherer) '+str(block_number-1))
+    else:
+        logger.debug('{}'.format(cluster_sock.getsockname())+Color.green+' -> '+Color.none+ str(peer)+' (peer) '+str(block_number))
+        
+    '''
+    Fin del nuevo código
+    '''
+
+    '''
+    #Código antiguo
     #with peer_list_lock:
     #peer_list_lock.acquire()
     len_peer_list = len(peer_list)
@@ -595,6 +701,8 @@ while True:
     block_number = (block_number + 1) % 65536
     
     total_blocks += 1
+    #Fin del código antiguo
+    '''
     
     '''
     #decrement unreliability and complaints after every 256 packets
