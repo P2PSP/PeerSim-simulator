@@ -58,12 +58,12 @@ rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/*
 rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/*
 
 #start the splitter
-xterm -l -lf ./output/salida_splitter.txt -e "./splitter-x.py --source_hostname=localhost --logging_level=DEBUG --buffer_size=$buffer_size" &
+xterm -l -lf ./output/salida_splitter.txt -e "./splitter-x.py --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size" &
 
 sleep 1
 
 #start the gatherer
-xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=DEBUG --buffer_size=$buffer_size" &
+xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size" &
 
 sleep 1s
 

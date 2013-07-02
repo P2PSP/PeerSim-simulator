@@ -93,7 +93,9 @@ number_of_blocks = 999999999
 blocks = [None]*buffer_size
 received = [False]*buffer_size
 
-
+# This variable holds the last block received from the splitter. It is
+# used below to send the "last" block in the congestion avoiding mode.
+last = ''
 
 logging_levelname = 'INFO' # 'DEBUG' (default), 'INFO' (cyan),
                            # 'WARNING' (blue), 'ERROR' (red),
@@ -104,7 +106,7 @@ logging_level = logging.INFO
 logging_filename = ''
 
 console_logging = False
-file_logging = True
+file_logging = False
 
 weibull_scale = 0   #for churn. 0 means no churn.
 
@@ -383,6 +385,7 @@ def retrieve_first_block():
     
 #first_payload contains (block_number,block)
 first_payload = retrieve_first_block()
+last = first_payload
 
 def retrieve_the_list_of_peers():
     # {{{
@@ -407,6 +410,7 @@ def retrieve_the_list_of_peers():
     IP_addr = socket.inet_ntoa(IP_addr)
     port = socket.ntohs(port)
     gatherer = (IP_addr, port)
+    #send the first block to the gatherer, very important!
     cluster_sock.sendto(first_payload, gatherer)
     while number_of_peers > 0:
         message = splitter_sock.recv(struct.calcsize("4sH"))
@@ -449,9 +453,7 @@ splitter_sock.close()
 # True if the peer has received "number_of_blocks" blocks.
 blocks_exhausted = False
 
-# This variable holds the last block received from the splitter. It is
-# used below to send the "last" block in the congestion avoiding mode.
-last = ''
+
 
 # Number of times that the last block has been sent to the cluster (we
 # send the block each time we receive a block).
@@ -484,8 +486,7 @@ def receive_and_feed():
 
             if sender == splitter:
                 # {{{ Send the previously received block in burst mode.
-
-                time.sleep(0.01)
+                
                 cluster_sock.sendto(message, gatherer)
                 # {{{ debug
                 if __debug__:
@@ -501,6 +502,7 @@ def receive_and_feed():
                         logger.debug("Sending block "+str(block_number)+" in burst mode")
                         logger.debug("Counter value: "+str(counter))
 
+                # finish sending the last block to all peers in "burst mode" before sending the new one
                 while( (counter < len(peer_list)) & (counter > 0)):
                     peer = peer_list[counter]
 
@@ -510,6 +512,9 @@ def receive_and_feed():
                     cluster_sock.sendto(last, peer)
     #                if not is_player_working:
     #                    cluster_sock.sendto('', peer)
+    
+                    if __debug__ and last=='':
+                        logger.debug("I'M SENDING A '' MESSAGE")
 
                     peer_insolidarity[peer] += 1
                     if peer_insolidarity[peer] > 64: # <- Important parameter!!
@@ -540,6 +545,7 @@ def receive_and_feed():
 '''
                 # }}}
             else:
+                # the sender is not the splitter, hence it's a peer
                 # {{{ Check if the peer is new
 
                 if sender not in peer_list:
@@ -586,18 +592,21 @@ def receive_and_feed():
 
             return block_number
             # }}}
-        elif message=='':
-            # {{{ Received a control block
+        elif message=='bye':
+            # {{{ Received a goodbye control block
 
-            if sender not in peer_list:
-                peer_list.append(sender)
-                peer_insolidarity[sender] = 0
-                if __debug__:
-                    logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' added by control block' + Color.none)
-            else:
+            #if sender not in peer_list:
+            #    peer_list.append(sender)
+            #    peer_insolidarity[sender] = 0
+            #    if __debug__:
+            #        logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' added by control block' + Color.none)
+            #else:
+            try:
                 peer_list.remove(sender)
                 if __debug__:
                     logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' removed by control block' + Color.none)
+            except:
+                pass
             return -1
             # }}}
         # }}}
@@ -751,7 +760,7 @@ while player_connected and not churn.time_to_die(death_time):
     
 if __debug__:
     logger.info(Color.cyan + 'Goodbye!' + Color.none)
-goodbye = ''
+goodbye = 'bye'
 cluster_sock.sendto(goodbye, splitter)
 for x in xrange(3):
     receive_and_feed()
