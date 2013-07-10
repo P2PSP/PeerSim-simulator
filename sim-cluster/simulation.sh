@@ -65,7 +65,7 @@ rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/*
 rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/*
 
 #start the splitter
-xterm -l -lf ./output/salida_splitter.txt -e "./splitter-x.py --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size --block_size=$block_size"&
+xterm -l -lf ./output/salida_splitter.txt -e "./splitter.py --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size --block_size=$block_size"&
 
 sleep 1
 
@@ -82,7 +82,7 @@ sleep 5s
 COUNTER=0
 while [ $COUNTER -lt $number_of_peers ];
 do
-    ./peer-x.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} --buffer_size=${buffer_size} --block_size=$block_size&
+    ./peer-h.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} --buffer_size=${buffer_size} --block_size=$block_size&
     let COUNTER=COUNTER+1 
 done
 #}

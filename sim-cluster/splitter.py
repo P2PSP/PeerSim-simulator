@@ -36,6 +36,7 @@
 
 import logging
 from colors import Color
+from common import Common
 import socket
 from blocking_TCP_socket import blocking_TCP_socket
 import sys
@@ -59,7 +60,12 @@ loss_percentage = float(loss_percentage)  #the same with the percentage of loss
 IP_ADDR = 0
 PORT = 1
 
-block_size = 1024
+# Buffer size in the peers and the gatherer
+#buffer_size = 32
+#block_size = 1024
+buffer_size = Common.buffer_size
+block_size = Common.block_size
+
 channel = '134.ogg'
 #source_hostname = '150.214.150.68'
 source_hostname = 'localhost'
@@ -77,6 +83,9 @@ print 'Argument List:', str(sys.argv)
 
 parser = argparse.ArgumentParser(
     description='This is the splitter node of a P2PSP network.')
+
+parser.add_argument('--buffer_size',
+                    help='size of the video buffer in blocks'.format(buffer_size))
 
 parser.add_argument('--block_size',
                     help='Block size in bytes. (Default = {})'.format(block_size))
@@ -97,6 +106,8 @@ parser.add_argument('--listening_port',
                     help='Port to talk with the gatherer and peers. (Default = {})'.format(listening_port))
 
 args = parser.parse_known_args()[0]
+if args.buffer_size:
+    buffer_size = int(args.buffer_size)
 if args.block_size:
     block_size = int(args.block_size)
 if args.channel:
@@ -171,8 +182,7 @@ peer_list = []
 # The number of the last received block from the streaming server
 block_number = 0 
 
-# Buffer size in the peers and the gatherer
-buffer_size = 32
+
 
 # Used to find the peer to which a block has been sent
 destination_of_block = [('0.0.0.0',0) for i in xrange(buffer_size)]
@@ -190,6 +200,13 @@ peer_index = 0
 peer_list_lock = Lock()
 
 gatherer = None
+
+block_format_string = "H"+str(block_size)+"s"
+
+print("Buffer size: "+str(buffer_size)+" blocks")
+print("Block size: "+str(block_size)+" bytes")
+logger.info("Buffer size: "+str(buffer_size)+" blocks")
+logger.info("Block size: "+str(block_size)+" bytes")
 
 # {{{ Handle one telnet client
 
@@ -543,7 +560,8 @@ while True:
                 source_sock.connect(source)
                 source_sock.sendall(GET_message)
 
-            block += source_sock.recv(1024-len(block))
+            #block += source_sock.recv(1024-len(block))
+            block += source_sock.recv(block_size - len(block))
         return block
 
         # }}}
@@ -584,7 +602,8 @@ while True:
                      '{}'.format(block_number))
     # }}}
 
-    message = struct.pack("H1024s", socket.htons(block_number), block)
+    #message = struct.pack("H1024s", socket.htons(block_number), block)
+    message = struct.pack(block_format_string, socket.htons(block_number), block)
     #if not (block_number%2)==0:
     cluster_sock.sendto(message, peer)
     # Ojo, a veces peta diciendo: "IndexError: list index out of range"
