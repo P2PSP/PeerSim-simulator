@@ -43,6 +43,7 @@
 
 import logging
 from colors import Color
+from common import Common
 import socket
 from blocking_TCP_socket import blocking_TCP_socket
 import sys
@@ -67,8 +68,11 @@ IP_ADDR = 0
 PORT = 1
 
 
-buffer_size = 32    # Buffer size in the peers and the gatherer
-block_size = 1024
+#buffer_size = 32    # Buffer size in the peers and the gatherer
+#block_size = 1024
+buffer_size = Common.buffer_size
+block_size = Common.block_size
+
 channel = '134.ogg'
 #source_hostname = '150.214.150.68'
 source_hostname = 'localhost'
@@ -111,7 +115,6 @@ parser.add_argument('--listening_port',
 args = parser.parse_known_args()[0]
 if args.buffer_size:
     buffer_size = int(args.buffer_size)
-    print("Buffer size "+str(buffer_size))
 if args.block_size:
     block_size = int(args.block_size)
 if args.channel:
@@ -205,7 +208,12 @@ source_sock_lock = Lock()
 
 gatherer = None
 
+block_format_string = "H"+str(block_size)+"s"
+
+print("Buffer size: "+str(buffer_size)+" blocks")
+print("Block size: "+str(block_size)+" bytes")
 logger.info("Buffer size: "+str(buffer_size)+" blocks")
+logger.info("Block size: "+str(block_size)+" bytes")
 
 # {{{ Handle one telnet client
 
@@ -372,7 +380,8 @@ class handle_arrivals(Thread):
                 complains[peer] = 0
                          
                 #send the block
-                message = struct.pack("H1024s", socket.htons(temp_block_number), block) 
+                #message = struct.pack("H1024s", socket.htons(temp_block_number), block)
+                message = struct.pack(block_format_string, socket.htons(temp_block_number), block) 
                 peer_serve_socket.sendall(message)
 
                 #send the list of peers
@@ -575,7 +584,8 @@ while True:
                     source_sock.connect(source)
                     source_sock.sendall(GET_message)
     
-                block += source_sock.recv(1024-len(block))
+                #block += source_sock.recv(1024-len(block))
+                block += source_sock.recv(block_size - len(block))
         finally:
             source_sock_lock.release()  #release the lock
         return block
@@ -617,7 +627,8 @@ while True:
     finally:
         peer_list_lock.release()    # release peer_list_lock
 
-    message = struct.pack("H1024s", socket.htons(temp_block_number), block)    
+    #message = struct.pack("H1024s", socket.htons(temp_block_number), block)    
+    message = struct.pack(block_format_string, socket.htons(temp_block_number), block)
     cluster_sock.sendto(message, peer)
     
     if peer == gatherer:

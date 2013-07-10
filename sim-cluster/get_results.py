@@ -35,14 +35,13 @@ for file_path in files_path:
         #read avg time
         line = fr.readline()
         time = float(line.split()[1])
-        print('Time '+str(time))
+        #print('Time '+str(time))
         sum += time
         count += 1
-        #read num_errors_buf
         fr.readline()
         line = fr.readline()
         num_errors_buf = float(line.split()[1])
-        print('Num errors buf '+str(num_errors_buf))
+        #print('Num errors buf '+str(num_errors_buf))
         sum_errors_buf += num_errors_buf
         count_errors_buf += 1
     except:

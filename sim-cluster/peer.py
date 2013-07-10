@@ -311,6 +311,10 @@ def connect_to_the_splitter():
     return sock
 
     # }}}
+
+# COMIENZO DE BUFFERING TIME    
+start_buffering_time = time.time()
+
 splitter_sock = connect_to_the_splitter() # Connect to the splitter in
                                           # order to tell it who the
                                           # gatherer is.
@@ -587,10 +591,8 @@ if __debug__:
 #time.clock() measures the time spent by the process (so the time spent waiting for an execution slot in the processor is left out)
 #time.time() measures wall time, this means execution time plus waiting time
 
-#start_buffering_time = time.clock()
 last_block_number = 0
 error_counter = 0
-start_buffering_time = time.time()
 
 block_number = receive_and_feed()
 while block_number<=0:
@@ -616,7 +618,7 @@ for x in xrange(buffer_size/2):
         error_counter += 1
 '''
 
-#end_buffering_time = time.clock()
+# FIN DE BUFFERING TIME
 end_buffering_time = time.time()
 buffering_time = end_buffering_time - start_buffering_time
 

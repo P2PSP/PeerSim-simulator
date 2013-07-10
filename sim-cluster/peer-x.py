@@ -46,6 +46,7 @@
 import os
 import logging
 from colors import Color
+from common import Common
 import sys
 import socket
 import struct
@@ -60,7 +61,8 @@ PORT = 1
 
 # Number of blocks of the buffer
 #buffer_size = 32
-buffer_size = 256
+#buffer_size = 256
+buffer_size = Common.buffer_size
 
 #cluster_port = 0 # OS default behavior will be used for port binding
 
@@ -72,16 +74,18 @@ listening_port = 9998
 splitter_hostname = 'localhost'
 splitter_port = 4552
 
-# Number of bytes of the stream's header
-#header_size = 1024*20*10
-header_size = 1024*20
-
 # Estas cuatro variables las debería indicar el splitter
 #source_hostname = '150.214.150.68'
 source_hostname = 'localhost'
 source_port = 4551
 channel = '134.ogg'
-block_size = 1024
+#block_size = 1024
+block_size = Common.block_size
+
+# Number of bytes of the stream's header
+#header_size = 1024*20*10
+#header_size = 1024*20
+header_size = Common.header_size
 
 # Controls if the stream is sent to a player
 _PLAYER_ = True
@@ -120,6 +124,9 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--buffer_size',
                     help='size of the video buffer in blocks. (Default = {})'.format(buffer_size))
 
+parser.add_argument('--block_size',
+                    help='Block size in bytes. (Default = {})'.format(block_size))
+
 parser.add_argument('--channel',
                     help='Name of the channel served by the streaming source. (Default = {})'.format(channel))
 
@@ -154,7 +161,8 @@ parser.add_argument('--churn', help='Scale parameter for the Weibull function, 0
 args = parser.parse_known_args()[0]
 if args.buffer_size:
     buffer_size = int(args.buffer_size)
-    print("Buffer size "+str(buffer_size))
+if args.block_size:
+    block_size = int(args.block_size)
 if args.channel:
     channel = args.channel
 if args.listening_port:
@@ -226,10 +234,15 @@ logger.addHandler(fh_timing)
 
 # }}}
 
+print("Buffer size: "+str(buffer_size)+" blocks")
+print("Block size: "+str(block_size)+" bytes")
 logger.info("Buffer size: "+str(buffer_size)+" blocks")
+logger.info("Block size: "+str(block_size)+" bytes")
 
 source = (source_hostname, source_port)
 splitter = (splitter_hostname, splitter_port)
+
+block_format_string = "H"+str(block_size)+"s"
 
 def get_player_socket():
     # {{{
@@ -320,6 +333,10 @@ def connect_to_the_splitter():
     return sock
 
     # }}}
+
+# COMIENZO DE BUFFERING TIME    
+start_buffering_time = time.time()
+
 splitter_sock = connect_to_the_splitter() # Connect to the splitter in
                                           # order to tell it who the
                                           # gatherer is.
@@ -361,10 +378,12 @@ def retrieve_first_block():
     global buffer_size
     global blocks
     
-    message = splitter_sock.recv(struct.calcsize("H1024s"))
-    print("First block recevied from splitter. "+str(len(message))+" bytes")
+    #message = splitter_sock.recv(struct.calcsize("H1024s"))
+    message = splitter_sock.recv(struct.calcsize(block_format_string))
+    print("First block received from splitter. "+str(len(message))+" bytes")
 
-    number, block = struct.unpack("H1024s", message)
+    #number, block = struct.unpack("H1024s", message)
+    number, block = struct.unpack(block_format_string, message)
     block_number = socket.ntohs(number)
     if __debug__:
         logger.debug("First block number: "+str(block_number))
@@ -467,10 +486,13 @@ def receive_and_feed():
 
     try:
         # {{{ Receive and send
-        message, sender = cluster_sock.recvfrom(struct.calcsize("H1024s"))
-        if len(message) == struct.calcsize("H1024s"):
+        #message, sender = cluster_sock.recvfrom(struct.calcsize("H1024s"))
+        message, sender = cluster_sock.recvfrom(struct.calcsize(block_format_string))
+        #if len(message) == struct.calcsize("H1024s"):
+        if len(message) == struct.calcsize(block_format_string):
             # {{{ Received a video block
-            number, block = struct.unpack("H1024s", message)
+            #number, block = struct.unpack("H1024s", message)
+            number, block = struct.unpack(block_format_string, message)
             block_number = socket.ntohs(number)
             # {{{ debug
             if __debug__:
@@ -550,7 +572,9 @@ def receive_and_feed():
 
                 if sender not in peer_list:
                     # The peer is new
-                    peer_list.append(sender)
+                    #peer_list.append(sender)
+                    #peer_list.insert(0,sender)
+                    peer_list.insert(counter,sender)
                     if __debug__:
                         logger.info(Color.cyan + str(cluster_sock.getsockname()) + ' peer ' + str(sender) + ' added by data block' + Color.none)
                 peer_insolidarity[sender] = 0
@@ -632,10 +656,9 @@ if __debug__:
 #time.clock() measures the time spent by the process (so the time spent waiting for an execution slot in the processor is left out)
 #time.time() measures wall time, this means execution time plus waiting time
 
-#start_buffering_time = time.clock()
 last_block_number = 0
 error_counter = 0
-start_buffering_time = time.time()
+#start_buffering_time = time.time()
 
 block_number = receive_and_feed()
 while block_number<=0:
@@ -660,8 +683,7 @@ for x in xrange(buffer_size/2):
     if last_block_number <= 0:
         error_counter += 1
 '''
-
-#end_buffering_time = time.clock()
+#FIN DE BUFFERING TIME
 end_buffering_time = time.time()
 buffering_time = end_buffering_time - start_buffering_time
 

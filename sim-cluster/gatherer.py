@@ -37,6 +37,7 @@
 import logging
 import os
 from colors import Color
+from common import Common
 import sys
 import socket
 import struct
@@ -49,16 +50,13 @@ IP_ADDR = 0
 PORT = 1
 
 # Number of blocks of the buffer
-buffer_size = 32
+#buffer_size = 32
+buffer_size = Common.buffer_size
 
 #cluster_port = 0 # OS default behavior will be used for port binding
 
 # Port to communicate with the player
 listening_port = 9999
-
-# Number of bytes of the stream's header
-#header_size = 1024*20*10
-header_size = 1024*20
 
 # Splitter endpoint
 #splitter_hostname = '150.214.150.68'
@@ -67,11 +65,18 @@ splitter_port = 4552
 
 # Estas cuatro variables las debería indicar el splitter
 channel = '134.ogg'
-block_size = 1024
+#block_size = 1024
+block_size = Common.block_size
+
 # Source's end-point
 #source_hostname = '150.214.150.68'
 source_hostname = 'localhost'
 source_port = 4551
+
+# Number of bytes of the stream's header
+#header_size = 1024*20*10
+#header_size = 1024*20
+header_size = Common.header_size
 
 logging_levelname = 'INFO' # 'DEBUG' (default), 'INFO' (cyan),
                            # 'WARNING' (blue), 'ERROR' (red),
@@ -87,6 +92,9 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('--buffer_size',
                     help='size of the video buffer in blocks'.format(buffer_size))
+
+parser.add_argument('--block_size',
+                    help='Block size in bytes. (Default = {})'.format(block_size))
 
 parser.add_argument('--channel',
                     help='Name of the channel served by the streaming source. (Default = {})'.format(channel))
@@ -112,7 +120,8 @@ parser.add_argument('--splitter_port',
 args = parser.parse_known_args()[0]
 if args.buffer_size:
     buffer_size = int(args.buffer_size)
-    print("Buffer size "+str(buffer_size))
+if args.block_size:
+    block_size = int(args.block_size)
 if args.channel:
     channel = args.channel
 if args.listening_port:
@@ -168,10 +177,15 @@ logger.addHandler(fh_timing)
 '''
 # }}}
 
-logger.info("Buffer size: "+str(buffer_size)+" blocks")
-
 source = (source_hostname, source_port)
 splitter = (splitter_hostname, splitter_port)
+
+block_format_string = "H"+str(block_size)+"s"
+
+print("Buffer size: "+str(buffer_size)+" blocks")
+print("Block size: "+str(block_size)+" bytes")
+logger.info("Buffer size: "+str(buffer_size)+" blocks")
+logger.info("Block size: "+str(block_size)+" bytes")
 
 def get_player_socket():
     # {{{
@@ -310,8 +324,10 @@ def receive():
     global splitter
 
     try:
-        message, sender = cluster_sock.recvfrom(struct.calcsize("H1024s"))
-        number, block = struct.unpack("H1024s", message)
+        #message, sender = cluster_sock.recvfrom(struct.calcsize("H1024s"))
+        message, sender = cluster_sock.recvfrom(struct.calcsize(block_format_string))
+        #number, block = struct.unpack("H1024s", message)
+        number, block = struct.unpack(block_format_string, message)
         block_number = socket.ntohs(number)
         blocks[block_number % buffer_size] = block
         received[block_number % buffer_size] = True
