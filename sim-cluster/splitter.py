@@ -279,7 +279,8 @@ def get_peer_connection_socket():
         pass
 
     sock.bind( ('', listening_port) )
-    sock.listen(5)
+    #sock.listen(5)
+    sock.listen(socket.SOMAXCONN)   #set the connection queue to the max!
 
     return sock
 
@@ -299,8 +300,83 @@ logger.info(Color.cyan +
             str(gatherer) +
             Color.none)
 
-# {{{ Handle peer arrivals.
+# {{{ Handle the arrival of a peer. This class is called y handle_arrivals
+class handle_one_arrival(Thread):
+    peer_serve_socket = ""
+    peer = ""
+    
+    def __init__(self, peer_serve_socket, peer):
+        Thread.__init__(self)
+        self.peer_serve_socket = peer_serve_socket
+        self.peer = peer
+        
+    def run(self):
+        
+        global peer_list
+        global unreliability
+        global complains
+        global logger
+        
+        # {{{ debug
+        if __debug__:
+            logger.debug('{}'.format(self.peer_serve_socket.getsockname()) +
+                         ' Accepted connection from peer ' +
+                         str(self.peer))
+        # }}}
 
+        # {{{ Send the list of peers to the peer /PS4/
+        # {{{ debug
+
+        if __debug__:
+            logger.debug('{}'.format(self.peer_serve_socket.getsockname()) +
+                         ' Sending the list of peers')
+        # }}}
+        
+        #get a copy of peer_list to prevent race conditions!
+        #list slicing ([:]) is faster than the list() method according to http://stackoverflow.com/questions/2612802/how-to-clone-a-list-in-python
+        #peer_list_copy = peer_list[:]
+        
+        #message = struct.pack("H", socket.htons(len(peer_list_copy)))
+        message = struct.pack("H", socket.htons(len(peer_list)))
+        self.peer_serve_socket.sendall(message)
+        message = struct.pack(
+                "4sH", socket.inet_aton(gatherer[IP_ADDR]),
+                socket.htons(gatherer[PORT]))
+        self.peer_serve_socket.sendall(message)
+        #for p in peer_list_copy:
+        for p in peer_list:
+            message = struct.pack(
+                "4sH", socket.inet_aton(p[IP_ADDR]),
+                socket.htons(p[PORT]))
+            self.peer_serve_socket.sendall(message)
+
+        # {{{ debug
+
+        if __debug__:
+            logger.debug(str(len(peer_list)) + ' peers sent')
+
+        # }}}
+
+        # }}}
+
+        # {{{ Close the TCP socket with the peer/gatherer
+
+        self.peer_serve_socket.close()
+
+        # }}}
+
+        #add peer to the REAL peer_list
+        peer_list.append(self.peer)
+        unreliability[self.peer] = 0
+        complains[self.peer] = 0
+
+        logger.info(Color.cyan +
+                    str(self.peer) +
+                    ' has joined the cluster' +
+                    Color.none)
+    # }}}
+            
+# {{{ Main handler peer arrivals.
 class handle_arrivals(Thread):
     # {{{
 
@@ -317,7 +393,12 @@ class handle_arrivals(Thread):
             # {{{ Wait for the connection from the peer /PS0/
 
             peer_serve_socket, peer = peer_connection_sock.accept()
-
+            handle_one_arrival(peer_serve_socket, peer).start()
+            
+           
+            #aquí comienza el thread
+            '''
+            
             # {{{ debug
             if __debug__:
                 logger.debug('{}'.format(peer_serve_socket.getsockname()) +
@@ -388,10 +469,13 @@ class handle_arrivals(Thread):
                         str(peer) +
                         ' has joined the cluster' +
                         Color.none)
-
+            '''
+            #fin del thread
     # }}}
 
-handle_arrivals().setDaemon(True) 
+print("Peer list length: "+str(len(peer_list)))
+
+handle_arrivals().setDaemon(True) #setting the thread as daemon makes it die when the main process ends. Otherwise, it'd never stop since it runs a while(true).
 handle_arrivals().daemon=True
 handle_arrivals().start()
 
@@ -606,6 +690,7 @@ while True:
     message = struct.pack(block_format_string, socket.htons(block_number), block)
     #if not (block_number%2)==0:
     cluster_sock.sendto(message, peer)
+    #print("Block "+str(block_number)+"sent to "+str(peer))
     # Ojo, a veces peta diciendo: "IndexError: list index out of range"
     destination_of_block[block_number % buffer_size] = peer
 
