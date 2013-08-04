@@ -199,7 +199,7 @@ peer_index = 0
 # A lock to perform mutual exclusion for accesing to the list of peers
 peer_list_lock = Lock()
 
-gatherer = None
+#gatherer = None
 
 block_format_string = "H"+str(block_size)+"s"
 
@@ -239,7 +239,8 @@ class get_the_state(Thread):
                 connection = sock.accept()[0]
                 message = 'a'
                 while message[0] != 'q':
-                    connection.sendall('Gatherer = ' + str(gatherer) + '\n')
+                    #Commented due to gatherer removal
+		    #connection.sendall('Gatherer = ' + str(gatherer) + '\n')
                     connection.sendall('Number of peers = ' + str(len(peer_list)) + '\n')
                     counter = 0
                     for p in peer_list:
@@ -286,6 +287,8 @@ def get_peer_connection_socket():
 
 peer_connection_sock = get_peer_connection_socket()
 
+'''
+#Commented due to gatherer removal
 logger.info(Color.cyan +
             '{}'.format(peer_connection_sock.getsockname()) +
             ' waiting for the gatherer on port ' +
@@ -299,6 +302,7 @@ logger.info(Color.cyan +
             ' the gatherer is ' +
             str(gatherer) +
             Color.none)
+'''
 
 # {{{ Handle the arrival of a peer. This class is called y handle_arrivals
 class handle_one_arrival(Thread):
@@ -339,11 +343,12 @@ class handle_one_arrival(Thread):
         #message = struct.pack("H", socket.htons(len(peer_list_copy)))
         message = struct.pack("H", socket.htons(len(peer_list)))
         self.peer_serve_socket.sendall(message)
-        message = struct.pack(
-                "4sH", socket.inet_aton(gatherer[IP_ADDR]),
-                socket.htons(gatherer[PORT]))
-        self.peer_serve_socket.sendall(message)
-        #for p in peer_list_copy:
+	
+	#Commented due to gatherer removal
+        #message = struct.pack("4sH", socket.inet_aton(gatherer[IP_ADDR]),socket.htons(gatherer[PORT]))
+        #self.peer_serve_socket.sendall(message)
+        
+	#for p in peer_list_copy:
         for p in peer_list:
             message = struct.pack(
                 "4sH", socket.inet_aton(p[IP_ADDR]),
@@ -662,51 +667,64 @@ while True:
                      ' ' +
                      '{}'.format(block_number))
     # }}}
+    print("Block "+str(block_number)+" received")
 
     #with peer_list_lock:
     #peer_list_lock.acquire()
     len_peer_list = len(peer_list)
+    print("Length of peer_list: "+str(len_peer_list))
     #if peer_index < len_peer_list:
     try:
         peer = peer_list[peer_index]
+	print("Destinatario peer: "+str(peer))
     except:
         try:
-            peer = peer_list[0]
+		peer = peer_list[0]
+		print("Destinatario peer2: "+str(peer))
         except:
-            peer = gatherer
-            len_peer_list = 1
+	    #Commented due to gatherer removal
+            #peer = gatherer
+            #len_peer_list = 1
+		peer = None
+		len_peer_list = 1	#should be zero but that would raise a modulo by zero exception	
+		print("No hay peers")	
+    
     #peer_list_lock.release()
 
     # {{{ debug
-    if __debug__:
-        logger.debug('{}'.format(cluster_sock.getsockname()) +
+	if __debug__:
+        	logger.debug('{}'.format(cluster_sock.getsockname()) +
                      Color.green + ' -> ' + Color.none +
                      '{}'.format(peer) +
                      ' ' +
                      '{}'.format(block_number))
     # }}}
 
-    #message = struct.pack("H1024s", socket.htons(block_number), block)
-    message = struct.pack(block_format_string, socket.htons(block_number), block)
-    #if not (block_number%2)==0:
-    cluster_sock.sendto(message, peer)
-    #print("Block "+str(block_number)+"sent to "+str(peer))
+    print("peer != None: "+str(peer!=None))
+    if peer != None:
+    	print("Sending block "+str(block_number))
+	#message = struct.pack("H1024s", socket.htons(block_number), block)
+	message = struct.pack(block_format_string, socket.htons(block_number), block)
+	#if not (block_number%2)==0:
+	cluster_sock.sendto(message, peer)
+	#print("Block "+str(block_number)+"sent to "+str(peer))
+
     # Ojo, a veces peta diciendo: "IndexError: list index out of range"
     destination_of_block[block_number % buffer_size] = peer
 
     peer_index = (peer_index + 1) % len_peer_list
 
     block_number = (block_number + 1) % 65536
-    
+
     total_blocks += 1
-    
+
     '''
     #decrement unreliability and complaints after every 256 packets
     if (block_number % 256) == 0:
-        for i in unreliability:
-            unreliability[i] /= 2
-        for i in complains:
-            complains[i] /= 2
+    for i in unreliability:
+        unreliability[i] /= 2
+    for i in complains:
+        complains[i] /= 2
     '''
 
 # }}}

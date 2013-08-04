@@ -100,8 +100,8 @@ logging_level = logging.INFO
 
 logging_filename = ''
 
-console_logging = False
-file_logging = False
+console_logging = True
+file_logging = True
 
 weibull_scale = 0   #for churn. 0 means no churn.
 
@@ -214,12 +214,12 @@ if console_logging == True:
 #jalvaro
 # create file handler and set the level
 if args.logging_filename and file_logging == False:
-    fh = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/output/peer-'+str(os.getpid()))
+    fh = logging.FileHandler('./output/peer-'+str(os.getpid()))
     fh.setLevel(logging_level)
     #add fh to logger
     logger.addHandler(fh)
 #jalvaro: create a file handler for the critical level, to store times. I know I shouldn't be using critical :D
-fh_timing = logging.FileHandler('/home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/peer-'+str(os.getpid()))
+fh_timing = logging.FileHandler('./timing/peer-'+str(os.getpid()))
 fh_timing.setLevel(logging.CRITICAL)
 logger.addHandler(fh_timing)
 
@@ -251,6 +251,7 @@ def get_player_socket():
 
     if __debug__:
         logger.info(Color.cyan + '{}'.format(sock.getsockname()) + ' waiting for the player on port ' + str(listening_port) + Color.none)
+    print("Waiting for the player")
     # }}}
 
     #sock, player = sock.baccept()
@@ -271,7 +272,7 @@ if _PLAYER_:
                      ' The player ' +
                      '{}'.format(player_sock.getpeername()) +
                      ' has establised a connection')
-
+    print("Player connected")
     # }}}
 
 def communicate_the_header():
@@ -310,6 +311,7 @@ def communicate_the_header():
 if _PLAYER_:
     communicate_the_header() # Retrieve the header of the stream from the
                              # source and send it to the player.
+print("Got the header")
 
 # {{{ debug
 if __debug__:
@@ -362,11 +364,14 @@ peer_list = []
 # of peers.  }}}
 peer_insolidarity = {}
 
-gatherer = None
+#Commented due to gatherer removal
+#gatherer = None
 
 def retrieve_the_list_of_peers():
     # {{{
-    global gatherer
+
+    #Commented due to gatherer removal
+    #global gatherer
     number_of_peers = socket.ntohs(
         struct.unpack("H",splitter_sock.recv(struct.calcsize("H")))[0])
 
@@ -380,11 +385,13 @@ def retrieve_the_list_of_peers():
                      str(number_of_peers))
 
     # }}}
-    message = splitter_sock.recv(struct.calcsize("4sH"))
-    IP_addr, port = struct.unpack("4sH", message)
-    IP_addr = socket.inet_ntoa(IP_addr)
-    port = socket.ntohs(port)
-    gatherer = (IP_addr, port)
+
+    #Commented due to gatherer removal
+    #message = splitter_sock.recv(struct.calcsize("4sH"))
+    #IP_addr, port = struct.unpack("4sH", message)
+    #IP_addr = socket.inet_ntoa(IP_addr)
+    #port = socket.ntohs(port)
+    #gatherer = (IP_addr, port)
     while number_of_peers > 0:
         message = splitter_sock.recv(struct.calcsize("4sH"))
         IP_addr, port = struct.unpack("4sH", message)
@@ -471,6 +478,8 @@ def receive_and_feed():
             if sender == splitter:
                 # {{{ Send the previously received block in burst mode.
 
+		'''
+		#Commented due to gatherer removal
                 cluster_sock.sendto(message, gatherer)
                 # {{{ debug
                 if __debug__:
@@ -481,6 +490,7 @@ def receive_and_feed():
                                  '{}'.format(gatherer))
 
                 # }}}
+		'''
 
                 while( (counter < len(peer_list)) & (counter > 0)):
                     peer = peer_list[counter]

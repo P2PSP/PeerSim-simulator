@@ -67,23 +67,28 @@ rm  /home/jalvaro/workspaces-eclipse/P2PSP-sim-cluster/sim/sim-cluster/timing/*
 #start the splitter
 xterm -l -lf ./output/salida_splitter.txt -e "./splitter.py --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size --block_size=$block_size"&
 
-sleep 1
+#sleep 1
 
 #start the gatherer
-xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size --block_size=$block_size" &
+#xterm -l -lf ./output/salida_gatherer.txt -e "./gatherer.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=INFO --buffer_size=$buffer_size --block_size=$block_size" &
 
 sleep 1s
 
 #start the player
-vlc http://localhost:9999 &
+#vlc http://localhost:9999 &
 
 sleep 5s
 #x(){
 COUNTER=0
-while [ $COUNTER -lt $number_of_peers ];
+while [ $COUNTER -lt $((number_of_peers-1)) ];
 do
     ./peer-h.py --splitter_hostname=localhost --source_hostname=localhost --no_player --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} --buffer_size=${buffer_size} --block_size=$block_size&
     let COUNTER=COUNTER+1 
 done
 #}
+rm ./output/salida_peer_player.txt
+xterm -l -lf ./output/salida_peer_player.txt -e "./peer-h.py --splitter_hostname=localhost --source_hostname=localhost --logging_level=DEBUG --logging_file=./output/peer-${COUNTER}  --churn=${churn_scale} --buffer_size=${buffer_size} --block_size=$block_size"&
+
+sleep 1s
+vlc http://localhost:9998 &
 set +x

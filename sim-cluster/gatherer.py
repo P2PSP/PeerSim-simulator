@@ -457,7 +457,7 @@ def send_a_block_to_the_player():
 
     except socket.error:
         logger.error(Color.red + 'player disconnected!' + Color.none)
-        quit()
+        #quit()
     except Exception as detail:
         logger.error(Color.red + 'unhandled exception ' + str(detail) + Color.none)
 
