@@ -10,20 +10,16 @@ public class SourceInitializer implements Control
 	private static final String PAR_PROT = "protocol";
 	private final int pid;
 	
-	public SourceInitializer(String prefix)
-	{
+	public SourceInitializer(String prefix) {
 		pid = Configuration.getPid(prefix + "." + PAR_PROT);
 	}
 
-	
 	@Override
-	public boolean execute() 
-	{
+	public boolean execute() {
 		//set the Source pid
 		Source.pidSource = pid;
 		
 		//set node 0 as source
-		Node nodo = Network.get(sourceIndex);
 		((Source) Network.get(sourceIndex).getProtocol(pid)).isSource = true;
 		
 		//set other nodes as not source
@@ -32,6 +28,4 @@ public class SourceInitializer implements Control
 
 		return true;
 	}
-	
-
 }

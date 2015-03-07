@@ -5,8 +5,8 @@ public class Packet
 	/**
 	 * Node index of the sender
 	 */
-	
 	public int sender;
+	
 	/**
 	 * Index (sequence number of the packet)
 	 */
@@ -18,8 +18,7 @@ public class Packet
 	 */
 	public Integer resendTo;
 
-	public Packet(int source, int index, Integer resendTo)
-	{
+	public Packet(int source, int index, Integer resendTo) {
 		this.sender = source;
 		this.index = index;
 		this.resendTo = resendTo;
