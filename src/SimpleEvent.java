@@ -2,6 +2,11 @@ package sim.src;
 
 public class SimpleEvent {
 	
+	public static final int HELLO = 1;
+	public static final int GOODBYE = 2;
+	public static final int CHUNK = 3;
+	public static final int PEERLIST = 4;
+	
 	private int type;
 	
 	public SimpleEvent(int type) {
