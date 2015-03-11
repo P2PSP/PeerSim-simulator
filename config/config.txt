@@ -8,8 +8,8 @@ CYCLE SIZE*10
 # parameters of message transfer
 # delay values here are relative to cycle length, in percentage,
 # eg 50 means half the cycle length, 200 twice the cycle length, etc.
-MINDELAY 0
-MAXDELAY 0
+MINDELAY 50
+MAXDELAY 200
 # drop is a probability, 0<=DROP<=1
 DROP 0
 

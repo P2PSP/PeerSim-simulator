@@ -33,18 +33,19 @@ public class Source implements CDProtocol, EDProtocol
 			return;
 		
 		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
-		recipient = peerList.get(recipientIndex).getNode();
-		//next node in the list
-		nextNodeIndex = (recipientIndex+1) % peerList.size();
-		
-		//send packet to this node, with nextNodeIndex in the resendTo field
-		IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
-		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, chunkMessage, Peer.pidPeer);
-		
-		//for next cycle
-		packetIndex++;
-		recipientIndex = nextNodeIndex;
-		
+		if (peerList.size() > 0) {
+			recipient = peerList.get(recipientIndex).getNode();
+			//next node in the list
+			nextNodeIndex = (recipientIndex+1) % peerList.size();
+			
+			//send packet to this node, with nextNodeIndex in the resendTo field
+			IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
+			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, chunkMessage, Peer.pidPeer);
+			
+			//for next cycle
+			packetIndex++;
+			recipientIndex = nextNodeIndex;
+		}
 		cycle++;
 	}
 
@@ -71,12 +72,12 @@ public class Source implements CDProtocol, EDProtocol
 	public void processEvent(Node node, int pid, Object event) {
 		SimpleEvent castedEvent = (SimpleEvent)event;
 		switch (castedEvent.getType()) {
-			case SimpleEvent.HELLO:
-				processHelloMessage(node, pid, (SimpleMessage)castedEvent);
-				break;
-			case SimpleEvent.GOODBYE:
-				processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
-				break;
+		case SimpleEvent.HELLO:
+			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
+		case SimpleEvent.GOODBYE:
+			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
 		}
 	}
 	
@@ -88,11 +89,15 @@ public class Source implements CDProtocol, EDProtocol
 	}
 	
 	private void processGoodbyeMessage(Node node, int pid, SimpleMessage receivedMessage) {
+		Neighbor peerToRemove = null;
 		for (Neighbor peer : peerList) {
 			if (peer.getNode().getID() == receivedMessage.getSender().getID()) {
-				peerList.remove(peer);
+				peerToRemove = peer;
 				break;
 			}
+		}
+		if (peerToRemove != null) {
+			peerList.remove(peerToRemove);
 		}
 	}
 	
