@@ -1,5 +1,7 @@
 package sim.src;
 
+import java.util.ArrayList;
+
 import peersim.cdsim.CDProtocol;
 import peersim.config.Configuration;
 import peersim.config.FastConfig;
@@ -15,11 +17,14 @@ public class Peer implements CDProtocol, EDProtocol
 	public boolean isPeer = false;
 	private Packet lastPacketFromSource = null;
 	private int bufferSize;
-	public Packet[] buffer;
+	public IntMessage[] buffer;
+	private ArrayList<Neighbor> peerList;
 
 	public Peer(String prefix) {
 		bufferSize = Configuration.getInt(prefix+".buffer_size", 32);
-		buffer = new Packet[bufferSize];
+		buffer = new IntMessage[bufferSize];
+		peerList = new ArrayList<Neighbor>();
+		
 	}
 	
 	@Override
@@ -30,30 +35,64 @@ public class Peer implements CDProtocol, EDProtocol
 	 * @Override
 	 */
 	public void processEvent(Node node, int pid, Object event) {
-		if(event instanceof Packet == false)
-			return;
-		
-		Packet packet = (Packet) event;
-		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received from "+packet.sender);
-
+		SimpleEvent castedEvent = (SimpleEvent)event;
+		switch (castedEvent.getType()) {
+		case SimpleEvent.CHUNK:
+			processChunkMessage(node, pid, (IntMessage)castedEvent);
+			break;
+		case SimpleEvent.PEERLIST:
+			processPeerlistMessage(node, pid, (ArrayListMessage)castedEvent);
+			break;
+		case SimpleEvent.HELLO:
+			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
+		case SimpleEvent.GOODBYE:
+			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
+			break;	
+		}
+	}
+	
+	private void processChunkMessage(Node node, int pid, IntMessage message) {
 		//store in buffer
-		buffer[packet.index%buffer.length] = packet;
-		
-		if(packet.sender == SourceInitializer.sourceIndex) { //the sender is the source
-			System.out.print(", resending to "+ packet.resendTo +"...");
-			Node recipient = Network.get(packet.resendTo);
-			//now resend to recipient the incoming packet, which is also the new "lastPacketFromSource"
-			lastPacketFromSource = packet;
-			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
-		} else { //the sender is not the source
-			Node recipient = Network.get(packet.sender);
-			if(lastPacketFromSource != null && recipient.getIndex() != lastPacketFromSource.resendTo) { //last condition is used to prevent an endless "ping-pong"
-				System.out.print(", sending packet "+lastPacketFromSource.index+" back");
-				//now first send the last packet from source
-				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
+		buffer[message.getInteger() % buffer.length] = message;
+		if(message.getSender().getIndex() == SourceInitializer.sourceIndex) { //the sender is the source
+			for (Neighbor peer : peerList) {
+				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger());
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
+			}
+		} else {
+			addNewNeighbor(message.getSender());
+		}
+	}
+	
+	private void processPeerlistMessage(Node node, int pid, ArrayListMessage<Neighbor> message) {
+		peerList.clear();
+		for (Neighbor peer : message.getArrayList()) {
+			peerList.add(peer);
+			SimpleMessage helloMessage = new SimpleMessage(SimpleEvent.HELLO, node);
+			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), helloMessage, pid);
+		}
+	}
+
+	private void processHelloMessage(Node node, int pid, SimpleMessage message) {
+		addNewNeighbor(message.getSender());
+	}
+
+	private void processGoodbyeMessage(Node node, int pid, SimpleMessage message) {
+		// remove neighbor from peerList
+	}
+	
+	private void addNewNeighbor(Node node) {
+		boolean isExist = false;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getID() == node.getID()) {
+				isExist = true;
+				break;
 			}
 		}
-		System.out.println();
+		if (!isExist) {
+			peerList.add(new Neighbor(node));
+		}
 	}
 	
 	public Object clone() {

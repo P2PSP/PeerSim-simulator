@@ -33,14 +33,13 @@ public class Source implements CDProtocol, EDProtocol
 			return;
 		
 		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
-		recipient = Network.get(recipientIndex);
+		recipient = peerList.get(recipientIndex).getNode();
 		//next node in the list
-		nextNodeIndex = (recipientIndex+1) % Network.size();
-		if(nextNodeIndex==0)
-			nextNodeIndex++;
+		nextNodeIndex = (recipientIndex+1) % peerList.size();
 		
 		//send packet to this node, with nextNodeIndex in the resendTo field
-		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex, nextNodeIndex), Peer.pidPeer);
+		IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
+		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, chunkMessage, Peer.pidPeer);
 		
 		//for next cycle
 		packetIndex++;

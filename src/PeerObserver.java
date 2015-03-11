@@ -63,17 +63,15 @@ public class PeerObserver implements Control
 		
 		System.out.println("---------------------------------------------------------------------------------");
 		System.out.println("This is PeerObserver. Buffers...");
-		for(int i = 1; i < Network.size(); i++)
-		{
+		for(int i = 1; i < Network.size(); i++) {
 			peer = (Peer) Network.get(i).getProtocol(pid);
 
 			System.out.print("Node "+i+" buffer: ");
-			for(int j = 0; j < peer.buffer.length; j++)
-			{
+			for(int j = 0; j < peer.buffer.length; j++) {
 				if(peer.buffer[j] == null)
 					System.out.print("   - ");
 				else
-					System.out.print(peer.buffer[j].index + " - ");
+					System.out.print(peer.buffer[j].getInteger() + " - ");
 			}
 			System.out.println();
 		}
