@@ -6,11 +6,15 @@ import peersim.transport.Transport;
 
 public class PeerInitializer implements Control
 {
-	int pid;
+	private int pid;
+	private int maliciousCount;
+	
     private static final String PAR_PROT = "protocol";
+    private static final String PAR_MALICIOUS_COUNT = "malicious_count";
 	
 	public PeerInitializer(String prefix) {
 		pid = Configuration.getPid(prefix + "." + PAR_PROT);
+		maliciousCount = Configuration.getInt(prefix + "." + PAR_MALICIOUS_COUNT);
 	}	
 	
 	@Override
@@ -27,7 +31,10 @@ public class PeerInitializer implements Control
 			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
 			((Transport)source.getProtocol(FastConfig.getTransport(pid))).send(Network.get(i), source, message, Source.pidSource);
 			((Peer)Network.get(i).getProtocol(pid)).isPeer = true;
-			
+			if (maliciousCount > 0) {
+				((Peer)Network.get(i).getProtocol(pid)).isMalicious = true;
+				maliciousCount--;
+			}
 		}
 			
 		

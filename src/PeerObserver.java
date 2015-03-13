@@ -69,9 +69,9 @@ public class PeerObserver implements Control
 			System.out.print("Node "+i+" buffer: ");
 			for(int j = 0; j < peer.buffer.length; j++) {
 				if(peer.buffer[j] == null)
-					System.out.print("   - ");
+					System.out.print("   | ");
 				else
-					System.out.print(peer.buffer[j].getInteger() + " - ");
+					System.out.print(peer.buffer[j].getInteger() + " | ");
 			}
 			System.out.println();
 		}

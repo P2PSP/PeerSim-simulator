@@ -47,6 +47,7 @@ init.1.protocol 1
 
 init.2 sim.src.PeerInitializer
 init.2.protocol 2
+init.2.malicious_count 1
 
 init.sch1 CDScheduler
 init.sch1.protocol 1

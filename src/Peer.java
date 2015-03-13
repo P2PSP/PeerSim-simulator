@@ -19,12 +19,13 @@ public class Peer implements CDProtocol, EDProtocol
 	private int bufferSize;
 	public IntMessage[] buffer;
 	private ArrayList<Neighbor> peerList;
+	public boolean isMalicious = false;
+	public boolean isTrusted = false;
 
 	public Peer(String prefix) {
 		bufferSize = Configuration.getInt(prefix+".buffer_size", 32);
 		buffer = new IntMessage[bufferSize];
 		peerList = new ArrayList<Neighbor>();
-		
 	}
 	
 	@Override
@@ -54,10 +55,10 @@ public class Peer implements CDProtocol, EDProtocol
 	
 	private void processChunkMessage(Node node, int pid, IntMessage message) {
 		//store in buffer
-		buffer[message.getInteger() % buffer.length] = message;
+		buffer[Math.abs(message.getInteger()) % buffer.length] = message;
 		if(message.getSender().getIndex() == SourceInitializer.sourceIndex) { //the sender is the source
 			for (Neighbor peer : peerList) {
-				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger());
+				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger() * (this.isMalicious ? -1 : 1));
 				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
 			}
 		} else {
