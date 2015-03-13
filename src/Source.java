@@ -84,7 +84,9 @@ public class Source implements CDProtocol, EDProtocol
 	}
 	
 	private void processHelloMessage(Node node, int pid, SimpleMessage receivedMessage) {
-		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, peerList);
+		ArrayList<Neighbor> clone = new ArrayList<Neighbor>();
+		for (Neighbor peer : this.peerList) clone.add(peer);
+		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, clone);
 		Node sender = receivedMessage.getSender();
 		((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);
 		peerList.add(new Neighbor(receivedMessage.getSender()));
