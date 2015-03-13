@@ -78,13 +78,15 @@ public class Source implements CDProtocol, EDProtocol
 		case SimpleEvent.GOODBYE:
 			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
 			break;
+		case SimpleEvent.BAD_PEER:
+			processBadPeerMessage(node, pid, (IntMessage)castedEvent);
 		}
 	}
 	
 	private void processHelloMessage(Node node, int pid, SimpleMessage receivedMessage) {
 		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, peerList);
 		Node sender = receivedMessage.getSender();
-		((Transport)sender.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);
+		((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);
 		peerList.add(new Neighbor(receivedMessage.getSender()));
 	}
 	
@@ -99,6 +101,25 @@ public class Source implements CDProtocol, EDProtocol
 		if (peerToRemove != null) {
 			peerList.remove(peerToRemove);
 		}
+	}
+	
+	private void processBadPeerMessage(Node node, int pid, IntMessage receivedMessage) {
+		removeNeighbor(receivedMessage.getInteger());
+		IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getInteger());
+		for (Neighbor peer : peerList) {
+			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), badPeerMessage, Peer.pidPeer);
+		}
+	}
+	
+	private void removeNeighbor(int index) {
+		Neighbor toRemove = null;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getIndex() == index) {
+				toRemove = peer;
+				break;
+			}
+		}
+		peerList.remove(toRemove);
 	}
 	
 }

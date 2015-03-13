@@ -6,6 +6,7 @@ public class SimpleEvent {
 	public static final int GOODBYE = 2;
 	public static final int CHUNK = 3;
 	public static final int PEERLIST = 4;
+	public static final int BAD_PEER = 5;
 	
 	private int type;
 	

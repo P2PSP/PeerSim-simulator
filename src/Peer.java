@@ -50,6 +50,9 @@ public class Peer implements CDProtocol, EDProtocol
 		case SimpleEvent.GOODBYE:
 			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
 			break;	
+		case SimpleEvent.BAD_PEER:
+			processBadPeerMessage(node, pid, (IntMessage)castedEvent);
+			break;
 		}
 	}
 	
@@ -62,6 +65,10 @@ public class Peer implements CDProtocol, EDProtocol
 				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
 			}
 		} else {
+			if (this.isTrusted && message.getInteger() < 0) { // poisoned chunk
+				IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, message.getSender().getIndex());
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), badPeerMessage, Source.pidSource);
+			}
 			addNewNeighbor(message.getSender());
 		}
 	}
@@ -94,6 +101,21 @@ public class Peer implements CDProtocol, EDProtocol
 		if (!isExist) {
 			peerList.add(new Neighbor(node));
 		}
+	}
+	
+	private void processBadPeerMessage(Node node, int pid, IntMessage message) {
+		removeNeighbor(message.getInteger());
+	}
+	
+	private void removeNeighbor(int index) {
+		Neighbor toRemove = null;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getIndex() == index) {
+				toRemove = peer;
+				break;
+			}
+		}
+		peerList.remove(toRemove);
 	}
 	
 	public Object clone() {
