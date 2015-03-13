@@ -17,7 +17,7 @@ public class Peer implements CDProtocol, EDProtocol
 	public boolean isPeer = false;
 	private int bufferSize;
 	public IntMessage[] buffer;
-	private ArrayList<Neighbor> peerList;
+	public ArrayList<Neighbor> peerList;
 	public boolean isMalicious = false;
 	public boolean isTrusted = false;
 

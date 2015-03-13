@@ -32,8 +32,8 @@ public class Source implements CDProtocol, EDProtocol
 		if(isSource == false)
 			return;
 		
-		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
 		if (peerList.size() > 0) {
+			System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+peerList.get(recipientIndex).getNode().getIndex()+".\n");
 			recipient = peerList.get(recipientIndex).getNode();
 			//next node in the list
 			nextNodeIndex = (recipientIndex+1) % peerList.size();
@@ -85,7 +85,11 @@ public class Source implements CDProtocol, EDProtocol
 	
 	private void processHelloMessage(Node node, int pid, SimpleMessage receivedMessage) {
 		ArrayList<Neighbor> clone = new ArrayList<Neighbor>();
-		for (Neighbor peer : this.peerList) clone.add(peer);
+		synchronized (this.peerList) {
+			for (Neighbor peer : this.peerList) {
+				clone.add(peer);
+			}
+		}
 		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, clone);
 		Node sender = receivedMessage.getSender();
 		((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);

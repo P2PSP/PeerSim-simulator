@@ -74,6 +74,11 @@ public class PeerObserver implements Control
 					System.out.print(peer.buffer[j].getInteger() + " | ");
 			}
 			System.out.println();
+			System.out.print("Node "+i+" neighbors: ");
+			for (Neighbor neighbor : peer.peerList) {
+				System.out.print (neighbor.getNode().getIndex() + ", ");
+			}
+			System.out.println();
 		}
 		System.out.println("---------------------------------------------------------------------------------");
 
