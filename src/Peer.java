@@ -15,7 +15,6 @@ public class Peer implements CDProtocol, EDProtocol
 {
 	public static int pidPeer;
 	public boolean isPeer = false;
-	private Packet lastPacketFromSource = null;
 	private int bufferSize;
 	public IntMessage[] buffer;
 	private ArrayList<Neighbor> peerList;
