@@ -78,8 +78,8 @@ public class Source implements CDProtocol, EDProtocol
 		case SimpleEvent.GOODBYE:
 			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
 			break;
-		case SimpleEvent.BAD_PEER:
-			processBadPeerMessage(node, pid, (IntMessage)castedEvent);
+		case SimpleEvent.CHUNK_CHECK:
+			processChunkCheckMessage(node, pid, (TupleMessage)castedEvent);
 		}
 	}
 	
@@ -103,11 +103,14 @@ public class Source implements CDProtocol, EDProtocol
 		}
 	}
 	
-	private void processBadPeerMessage(Node node, int pid, IntMessage receivedMessage) {
-		removeNeighbor(receivedMessage.getInteger());
-		IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getInteger());
-		for (Neighbor peer : peerList) {
-			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), badPeerMessage, Peer.pidPeer);
+	private void processChunkCheckMessage(Node node, int pid, TupleMessage receivedMessage) {
+		int chunkNum = receivedMessage.getY();
+		if (chunkNum < 0) { // poisoned chunk
+			removeNeighbor(receivedMessage.getX());
+			IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getX());
+			for (Neighbor peer : peerList) {
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), badPeerMessage, Peer.pidPeer);
+			}
 		}
 	}
 	

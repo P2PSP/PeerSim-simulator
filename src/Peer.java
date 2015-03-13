@@ -64,9 +64,9 @@ public class Peer implements CDProtocol, EDProtocol
 				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
 			}
 		} else {
-			if (this.isTrusted && message.getInteger() < 0) { // poisoned chunk
-				IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, message.getSender().getIndex());
-				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), badPeerMessage, Source.pidSource);
+			if (this.isTrusted) {
+				TupleMessage chunkCheckMessage = new TupleMessage(SimpleEvent.CHUNK_CHECK, node, message.getSender().getIndex(), message.getInteger());
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), chunkCheckMessage, Source.pidSource);
 			}
 			addNewNeighbor(message.getSender());
 		}
