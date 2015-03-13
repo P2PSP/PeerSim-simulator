@@ -8,13 +8,16 @@ public class PeerInitializer implements Control
 {
 	private int pid;
 	private int maliciousCount;
+	private int trustedCount;
 	
     private static final String PAR_PROT = "protocol";
     private static final String PAR_MALICIOUS_COUNT = "malicious_count";
+    private static final String PAR_TRUSTED_COUNT = "trusted_count";
 	
 	public PeerInitializer(String prefix) {
 		pid = Configuration.getPid(prefix + "." + PAR_PROT);
 		maliciousCount = Configuration.getInt(prefix + "." + PAR_MALICIOUS_COUNT);
+		trustedCount = Configuration.getInt(prefix + "." + PAR_TRUSTED_COUNT);
 	}	
 	
 	@Override
@@ -31,9 +34,13 @@ public class PeerInitializer implements Control
 			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
 			((Transport)source.getProtocol(FastConfig.getTransport(pid))).send(Network.get(i), source, message, Source.pidSource);
 			((Peer)Network.get(i).getProtocol(pid)).isPeer = true;
+			
 			if (maliciousCount > 0) {
 				((Peer)Network.get(i).getProtocol(pid)).isMalicious = true;
 				maliciousCount--;
+			} else if (trustedCount > 0) {
+				((Peer)Network.get(i).getProtocol(pid)).isTrusted = true;
+				trustedCount--;
 			}
 		}
 			
