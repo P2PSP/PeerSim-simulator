@@ -18,12 +18,6 @@
 		
 package sim.src;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-
 import peersim.config.*;
 import peersim.core.*;
 import peersim.util.*;
@@ -39,19 +33,11 @@ import peersim.util.*;
 */
 public class PeerObserver implements Control 
 {
-	//--------------------------------------------------------------------------
-	//Parameters
-	//--------------------------------------------------------------------------
-	
 	/**
 	 * The protocol to operate on.
 	 * @config
 	 */
 	private static final String PAR_PROT = "protocol";
-	
-	//--------------------------------------------------------------------------
-	// Fields
-	//--------------------------------------------------------------------------
 	
 	/** The name of this observer in the configuration */
 	private final String name;
@@ -61,44 +47,36 @@ public class PeerObserver implements Control
 	
 	private  int cycle_length;
 	
-	//--------------------------------------------------------------------------
-	// Constructor
-	//--------------------------------------------------------------------------
-	
 	/**
 	 * Standard constructor that reads the configuration parameters.
 	 * Invoked by the simulation engine.
 	 * @param name the configuration prefix for this class
 	 */
-	public PeerObserver(String name)
-	{
+	public PeerObserver(String name) {
 		this.name = name;
 		pid = Configuration.getPid(name + "." + PAR_PROT);
 		cycle_length = Configuration.getInt("CYCLE");
 	}
 	
-	
-	//--------------------------------------------------------------------------
-	// Methods
-	//--------------------------------------------------------------------------
-	
-	public boolean execute()
-	{
+	public boolean execute() {
 		Peer peer;
 		
 		System.out.println("---------------------------------------------------------------------------------");
 		System.out.println("This is PeerObserver. Buffers...");
-		for(int i = 1; i < Network.size(); i++)
-		{
+		for(int i = 1; i < Network.size(); i++) {
 			peer = (Peer) Network.get(i).getProtocol(pid);
 
 			System.out.print("Node "+i+" buffer: ");
-			for(int j = 0; j < peer.buffer.length; j++)
-			{
+			for(int j = 0; j < peer.buffer.length; j++) {
 				if(peer.buffer[j] == null)
-					System.out.print("   - ");
+					System.out.print("   | ");
 				else
-					System.out.print(peer.buffer[j].index + " - ");
+					System.out.print(peer.buffer[j].getInteger() + " | ");
+			}
+			System.out.println();
+			System.out.print("Node "+i+" neighbors: ");
+			for (Neighbor neighbor : peer.peerList) {
+				System.out.print (neighbor.getNode().getIndex() + ", ");
 			}
 			System.out.println();
 		}
@@ -106,5 +84,4 @@ public class PeerObserver implements Control
 
 		return false;
 	}
-	//--------------------------------------------------------------------------
 }

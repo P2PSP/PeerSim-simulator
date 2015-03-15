@@ -1,16 +1,16 @@
 package sim.src;
 
+import java.util.ArrayList;
+
 import peersim.cdsim.CDProtocol;
 import peersim.config.FastConfig;
-import peersim.core.CommonState;
-import peersim.core.Linkable;
 import peersim.core.Network;
 import peersim.core.Node;
 import peersim.edsim.EDProtocol;
 import peersim.transport.Transport;
 
 
-public class Source implements CDProtocol, Linkable
+public class Source implements CDProtocol, EDProtocol
 {
 	public static  int pidSource;
 	
@@ -18,43 +18,41 @@ public class Source implements CDProtocol, Linkable
 	private int packetIndex = 1;
 	private int recipientIndex = 1;
 	private int cycle = 1;
+	private ArrayList<Neighbor> peerList;
 	
-	/*
-	 * Empty constructor
-	 */
-	public Source(String prefix){	}
+	public Source(String prefix) {
+		this.peerList = new ArrayList<Neighbor>();
+	}
 	
 	@Override
-	public void nextCycle(Node node, int pid) 
-	{
+	public void nextCycle(Node node, int pid) {
 		Node recipient;
 		int nextNodeIndex;
 		
 		if(isSource == false)
 			return;
 		
-		System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+recipientIndex+".\n");
-		recipient = Network.get(recipientIndex);
-		//next node in the list
-		nextNodeIndex = (recipientIndex+1) % Network.size();
-		if(nextNodeIndex==0)
-			nextNodeIndex++;
-		
-		//send packet to this node, with nextNodeIndex in the resendTo field
-		((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), packetIndex, nextNodeIndex), Peer.pidPeer);
-		
-		//for next cycle
-		packetIndex++;
-		recipientIndex = nextNodeIndex;
-		
+		if (peerList.size() > 0) {
+			System.out.println("\nCycle " + cycle +". This is SOURCE sending packet "+packetIndex+" to node "+peerList.get(recipientIndex).getNode().getIndex()+".\n");
+			recipient = peerList.get(recipientIndex).getNode();
+			//next node in the list
+			nextNodeIndex = (recipientIndex+1) % peerList.size();
+			
+			//send packet to this node, with nextNodeIndex in the resendTo field
+			IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
+			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, chunkMessage, Peer.pidPeer);
+			
+			//for next cycle
+			packetIndex++;
+			recipientIndex = nextNodeIndex;
+		}
 		cycle++;
 	}
 
 	/*
 	 * Returns the regular peer with absolute index "index"
 	 */
-	public Peer getPeer(int index)
-	{
+	public Peer getPeer(int index) {
 		Node node = Network.get(index);
 		//look for the Peer protocol
 		for(int p = 0; p < node.protocolSize(); p++)
@@ -66,51 +64,71 @@ public class Source implements CDProtocol, Linkable
 		return null;		
 	}
 	
-	
-	/*
-	 * Other overriden methods
-	 */
-	@Override
-	public Node getNeighbor(int index) 
-	{
-		// TODO Auto-generated method stub
-		return null;
-	}	
-
-	
-	public Object clone()
-	{
+	public Object clone() {
 		return new Source("");
 	}
 
 	@Override
-	public void onKill() {
-		// TODO Auto-generated method stub
-		
+	public void processEvent(Node node, int pid, Object event) {
+		SimpleEvent castedEvent = (SimpleEvent)event;
+		switch (castedEvent.getType()) {
+		case SimpleEvent.HELLO:
+			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
+		case SimpleEvent.GOODBYE:
+			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
+		case SimpleEvent.CHUNK_CHECK:
+			processChunkCheckMessage(node, pid, (TupleMessage)castedEvent);
+		}
 	}
-
-	@Override
-	public boolean addNeighbor(Node arg0) {
-		// TODO Auto-generated method stub
-		return false;
+	
+	private void processHelloMessage(Node node, int pid, SimpleMessage receivedMessage) {
+		ArrayList<Neighbor> clone = new ArrayList<Neighbor>();
+		synchronized (this.peerList) {
+			for (Neighbor peer : this.peerList) {
+				clone.add(peer);
+			}
+		}
+		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, clone);
+		Node sender = receivedMessage.getSender();
+		((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);
+		peerList.add(new Neighbor(receivedMessage.getSender()));
 	}
-
-	@Override
-	public boolean contains(Node arg0) {
-		// TODO Auto-generated method stub
-		return false;
+	
+	private void processGoodbyeMessage(Node node, int pid, SimpleMessage receivedMessage) {
+		Neighbor peerToRemove = null;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getID() == receivedMessage.getSender().getID()) {
+				peerToRemove = peer;
+				break;
+			}
+		}
+		if (peerToRemove != null) {
+			peerList.remove(peerToRemove);
+		}
 	}
-
-	@Override
-	public int degree() {
-		// TODO Auto-generated method stub
-		return 0;
+	
+	private void processChunkCheckMessage(Node node, int pid, TupleMessage receivedMessage) {
+		int chunkNum = receivedMessage.getY();
+		if (chunkNum < 0) { // poisoned chunk
+			removeNeighbor(receivedMessage.getX());
+			IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getX());
+			for (Neighbor peer : peerList) {
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), badPeerMessage, Peer.pidPeer);
+			}
+		}
 	}
-
-	@Override
-	public void pack() {
-		// TODO Auto-generated method stub
-		
+	
+	private void removeNeighbor(int index) {
+		Neighbor toRemove = null;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getIndex() == index) {
+				toRemove = peer;
+				break;
+			}
+		}
+		peerList.remove(toRemove);
 	}
-
+	
 }

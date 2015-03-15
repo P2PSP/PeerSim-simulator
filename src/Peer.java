@@ -1,164 +1,123 @@
 package sim.src;
 
+import java.util.ArrayList;
+
 import peersim.cdsim.CDProtocol;
 import peersim.config.Configuration;
 import peersim.config.FastConfig;
-import peersim.core.CommonState;
-import peersim.core.Linkable;
 import peersim.core.Network;
 import peersim.core.Node;
 import peersim.edsim.EDProtocol;
 import peersim.transport.Transport;
 
 
-public class Peer implements CDProtocol, EDProtocol, Linkable
+public class Peer implements CDProtocol, EDProtocol
 {
 	public static int pidPeer;
-	
 	public boolean isPeer = false;
-	
-	private Packet lastPacketFromSource = null;
-	
-	private Packet lastPacket = null;
-	
 	private int bufferSize;
-	public Packet[] buffer;
-	
+	public IntMessage[] buffer;
+	public ArrayList<Neighbor> peerList;
+	public boolean isMalicious = false;
+	public boolean isTrusted = false;
 
-	public Peer(String prefix)
-	{
+	public Peer(String prefix) {
 		bufferSize = Configuration.getInt(prefix+".buffer_size", 32);
-		buffer = new Packet[bufferSize];
+		buffer = new IntMessage[bufferSize];
+		peerList = new ArrayList<Neighbor>();
 	}
 	
 	@Override
-	public void nextCycle(Node node, int pid) 
-	{	}
+	public void nextCycle(Node node, int pid) {}
 	
 	/**
 	 * The last packet FROM THE SOURCE from anyone is resent to everyone
+	 * @Override
 	 */
-//	@Override
-	public void processEvent(Node node, int pid, Object event)
-	{
-		if(event instanceof Packet == false)
-			return;
-		
-		Packet packet = (Packet) event;
-		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received from "+packet.sender);
-
-		//store in buffer
-		buffer[packet.index%buffer.length] = packet;
-		
-		if(packet.sender == SourceInitializer.sourceIndex)	//the sender is the source
-		{
-			System.out.print(", resending to "+ packet.resendTo +"...");
-			Node recipient = Network.get(packet.resendTo);
-			//now resend to recipient the incoming packet, which is also the new "lastPacketFromSource"
-			lastPacketFromSource = packet;
-			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
+	public void processEvent(Node node, int pid, Object event) {
+		SimpleEvent castedEvent = (SimpleEvent)event;
+		switch (castedEvent.getType()) {
+		case SimpleEvent.CHUNK:
+			processChunkMessage(node, pid, (IntMessage)castedEvent);
+			break;
+		case SimpleEvent.PEERLIST:
+			processPeerlistMessage(node, pid, (ArrayListMessage)castedEvent);
+			break;
+		case SimpleEvent.HELLO:
+			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
+			break;
+		case SimpleEvent.GOODBYE:
+			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
+			break;	
+		case SimpleEvent.BAD_PEER:
+			processBadPeerMessage(node, pid, (IntMessage)castedEvent);
+			break;
 		}
-		else	//the sender is not the source
-		{
-			Node recipient = Network.get(packet.sender);
-			if(lastPacketFromSource != null && recipient.getIndex() != lastPacketFromSource.resendTo) //last condition is used to prevent an endless "ping-pong"
-			{
-				System.out.print(", sending packet "+lastPacketFromSource.index+" back");
-				//now first send the last packet from source
-				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacketFromSource.index, null), Peer.pidPeer);
-			}
-		}
-		System.out.println();
-	}
-
-	
-	/**
-	 * The last packet FROM ANYONE is resent to everyone
-	 */
-	//@Override
-	public void processEvent2(Node node, int pid, Object event)
-	{
-		if(event instanceof Packet == false)
-			return;
-		
-		Packet packet = (Packet) event;
-		System.out.print("Peer "+node.getIndex()+": packet "+packet.index+" received from "+packet.sender);
-
-		//store in buffer
-		buffer[packet.index%buffer.length] = packet;
-		
-		if(packet.sender == SourceInitializer.sourceIndex)	//the sender is the source
-		{
-			System.out.print(", resending to "+ packet.resendTo +"...");
-			Node recipient = Network.get(packet.resendTo);
-			//now resend to recipient the incoming packet, which is also the new "lastPacket"
-			lastPacket = packet;
-			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacket.index, null), Peer.pidPeer);
-		}
-		else	//the sender is not the source
-		{
-			Node recipient = Network.get(packet.sender);
-			if(lastPacket != null && recipient.getIndex() != lastPacket.resendTo)	//last condition is used to prevent an endless "ping-pong"
-			{
-				System.out.print(", sending packet "+lastPacket.index+" back");
-				//now first send the last packet and then replace "lastPacket"
-				((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, new Packet(node.getIndex(), lastPacket.index, null), Peer.pidPeer);
-				lastPacket = packet;
-			}
-		}
-		System.out.println();
 	}
 	
+	private void processChunkMessage(Node node, int pid, IntMessage message) {
+		//store in buffer
+		buffer[Math.abs(message.getInteger()) % buffer.length] = message;
+		if(message.getSender().getIndex() == SourceInitializer.sourceIndex) { //the sender is the source
+			for (Neighbor peer : peerList) {
+				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger() * (this.isMalicious ? -1 : 1));
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
+			}
+		} else {
+			if (this.isTrusted) {
+				TupleMessage chunkCheckMessage = new TupleMessage(SimpleEvent.CHUNK_CHECK, node, message.getSender().getIndex(), message.getInteger());
+				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), chunkCheckMessage, Source.pidSource);
+			}
+			addNewNeighbor(message.getSender());
+		}
+	}
 	
+	private void processPeerlistMessage(Node node, int pid, ArrayListMessage<Neighbor> message) {
+		peerList.clear();
+		for (Neighbor peer : message.getArrayList()) {
+			peerList.add(peer);
+			SimpleMessage helloMessage = new SimpleMessage(SimpleEvent.HELLO, node);
+			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), helloMessage, pid);
+		}
+	}
+
+	private void processHelloMessage(Node node, int pid, SimpleMessage message) {
+		addNewNeighbor(message.getSender());
+	}
+
+	private void processGoodbyeMessage(Node node, int pid, SimpleMessage message) {
+		// remove neighbor from peerList
+	}
 	
-	/*
-	 * Other overriden methods
-	 */
-		
-	/**
-	 * Clones the object.
-	 */
-	public Object clone()
-	{
+	private void addNewNeighbor(Node node) {
+		boolean isExist = false;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getID() == node.getID()) {
+				isExist = true;
+				break;
+			}
+		}
+		if (!isExist) {
+			peerList.add(new Neighbor(node));
+		}
+	}
+	
+	private void processBadPeerMessage(Node node, int pid, IntMessage message) {
+		removeNeighbor(message.getInteger());
+	}
+	
+	private void removeNeighbor(int index) {
+		Neighbor toRemove = null;
+		for (Neighbor peer : peerList) {
+			if (peer.getNode().getIndex() == index) {
+				toRemove = peer;
+				break;
+			}
+		}
+		peerList.remove(toRemove);
+	}
+	
+	public Object clone() {
 		return new Peer("");
-	}
-
-
-	@Override
-	public void onKill() {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public boolean addNeighbor(Node arg0) {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public boolean contains(Node arg0) {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public int degree() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public Node getNeighbor(int arg0) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public void pack() {
-		// TODO Auto-generated method stub
-		
-	}
-
-	
+	}	
 }

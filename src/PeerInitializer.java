@@ -2,34 +2,49 @@ package sim.src;
 
 import peersim.config.*;
 import peersim.core.*;
+import peersim.transport.Transport;
 
 public class PeerInitializer implements Control
 {
-	int pid;
+	private int pid;
+	private int maliciousCount;
+	private int trustedCount;
+	
     private static final String PAR_PROT = "protocol";
+    private static final String PAR_MALICIOUS_COUNT = "malicious_count";
+    private static final String PAR_TRUSTED_COUNT = "trusted_count";
 	
-	public PeerInitializer(String prefix)
-	{
+	public PeerInitializer(String prefix) {
 		pid = Configuration.getPid(prefix + "." + PAR_PROT);
-		int a  = 0;
-	}
-	
-	
+		maliciousCount = Configuration.getInt(prefix + "." + PAR_MALICIOUS_COUNT);
+		trustedCount = Configuration.getInt(prefix + "." + PAR_TRUSTED_COUNT);
+	}	
 	
 	@Override
-	public boolean execute() 
-	{
+	public boolean execute() {
 		//set the Peer pid
 		Peer.pidPeer = pid;
 		
-		//set 0 as not peer
-		((Peer)Network.get(0).getProtocol(pid)).isPeer = false;
+		//set source as not peer
+		((Peer)Network.get(SourceInitializer.sourceIndex).getProtocol(pid)).isPeer = false;
 		
 		//set other peers as peer
-		for(int i = 1; i < Network.size(); i++)
+		for(int i = 1; i < Network.size(); i++) {
+			Node source = Network.get(0);
+			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
+			((Transport)source.getProtocol(FastConfig.getTransport(pid))).send(Network.get(i), source, message, Source.pidSource);
 			((Peer)Network.get(i).getProtocol(pid)).isPeer = true;
+			
+			if (maliciousCount > 0) {
+				((Peer)Network.get(i).getProtocol(pid)).isMalicious = true;
+				maliciousCount--;
+			} else if (trustedCount > 0) {
+				((Peer)Network.get(i).getProtocol(pid)).isTrusted = true;
+				trustedCount--;
+			}
+		}
+			
 		
 		return true;
 	}
-
 }
