@@ -29,17 +29,24 @@ public class PeerInitializer implements Control
 		((Peer)Network.get(SourceInitializer.sourceIndex).getProtocol(pid)).isPeer = false;
 		
 		Node source = Network.get(0);
-		
+		while (maliciousCount > 0) {
+			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
+			if (!((Peer)Network.get(r).getProtocol(pid)).isMalicious && !((Peer)Network.get(r).getProtocol(pid)).isTrusted) {
+				((Peer)Network.get(r).getProtocol(pid)).isMalicious = true;
+				maliciousCount--;
+			}
+		}
+		while (trustedCount > 0) {
+			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
+			if (!((Peer)Network.get(r).getProtocol(pid)).isMalicious && !((Peer)Network.get(r).getProtocol(pid)).isTrusted) {
+				((Peer)Network.get(r).getProtocol(pid)).isTrusted = true;
+				trustedCount--;
+			}
+		}
 		for(int i = 1; i < Network.size(); i++) {
 			Node node = Network.get(i);
 			((Peer)node.getProtocol(pid)).isPeer = true;
-			if (maliciousCount > 0) {
-				((Peer)node.getProtocol(pid)).isMalicious = true;
-				maliciousCount--;
-			} else if (trustedCount > 0) {
-				((Peer)node.getProtocol(pid)).isTrusted = true;
-				trustedCount--;
-			}
+			
 			
 			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
 			long latency = ((Transport)node.getProtocol(FastConfig.getTransport(Peer.pidPeer))).getLatency(node, source);
