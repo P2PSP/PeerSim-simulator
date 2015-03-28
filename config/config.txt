@@ -2,14 +2,14 @@
 SIZE 10
 
 # parameters of periodic execution
-CYCLES 50
+CYCLES 200
 CYCLE SIZE*10
 
 # parameters of message transfer
 # delay values here are relative to cycle length, in percentage,
 # eg 50 means half the cycle length, 200 twice the cycle length, etc.
 MINDELAY 0
-MAXDELAY 75
+MAXDELAY 50
 # drop is a probability, 0<=DROP<=1
 DROP 0
 
@@ -17,6 +17,7 @@ random.seed 9098797865656766578567
 network.size SIZE
 simulation.endtime CYCLE*CYCLES
 simulation.logtime CYCLE
+simulation.experiments 100
 
 ################### protocols ===========================
 protocol.0 peersim.core.IdleProtocol
@@ -49,7 +50,6 @@ init.2 sim.src.PeerInitializer
 init.2.protocol 2
 init.2.malicious_count 1
 init.2.trusted_count 1
-init.2.random_arrival 1
 
 init.sch1 CDScheduler
 init.sch1.protocol 1
@@ -62,6 +62,10 @@ init.sch2.randstart
 
 ################ control ==============================
 
-control.0 sim.src.PeerObserver
-control.0.protocol 2
-control.0.step CYCLE*1
+#control.0 sim.src.PeerObserver
+#control.0.protocol 2
+#control.0.step CYCLE*1
+
+control.1 sim.src.PoisonedChunksObserver
+control.1.protocol 2
+control.1.step CYCLE*1

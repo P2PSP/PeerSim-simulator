@@ -16,7 +16,7 @@ public class Source implements CDProtocol, EDProtocol
 	
 	public boolean isSource = false;
 	private int packetIndex = 1;
-	private int recipientIndex = 0;
+	private int recipientIndex = 1;
 	private int cycle = 1;
 	private ArrayList<Neighbor> peerList;
 	
@@ -33,10 +33,12 @@ public class Source implements CDProtocol, EDProtocol
 			return;
 		
 		if (peerList.size() > 0) {
-			System.out.println("\nCycle " + cycle + ". This is SOURCE sending packet " + packetIndex + " to node " + peerList.get(recipientIndex).getNode().getIndex() + ".\n");
+			if (recipientIndex >= peerList.size()) {
+				recipientIndex = 0;
+			}
 			recipient = peerList.get(recipientIndex).getNode();
 			//next node in the list
-			recipientIndex = (recipientIndex+1) % peerList.size();
+			nextNodeIndex = (recipientIndex+1) % peerList.size();
 			
 			//send packet to this node, with nextNodeIndex in the resendTo field
 			IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
@@ -44,6 +46,7 @@ public class Source implements CDProtocol, EDProtocol
 			
 			//for next cycle
 			packetIndex++;
+			recipientIndex = nextNodeIndex;
 		}
 		cycle++;
 	}
