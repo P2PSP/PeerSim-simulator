@@ -8,7 +8,6 @@ import peersim.config.FastConfig;
 import peersim.core.Network;
 import peersim.core.Node;
 import peersim.edsim.*;
-import peersim.edsim.EDProtocol;
 import peersim.transport.Transport;
 
 
@@ -64,13 +63,14 @@ public class Peer implements CDProtocol, EDProtocol
 			int latencySum = 0;
 			for (Neighbor peer : peerList) {
 				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger() * (this.isMalicious ? -1 : 1));
-				latencySum += ((Transport)node.getProtocol(FastConfig.getTransport(pid))).getLatency(node, peer.getNode());
+				latencySum += chunkMessage.getLatency(peer.getNode(), pid);
 				EDSimulator.add(latencySum, chunkMessage, peer.getNode(), pid);
 			}
 		} else {
 			if (this.isTrusted) {
 				TupleMessage chunkCheckMessage = new TupleMessage(SimpleEvent.CHUNK_CHECK, node, message.getSender().getIndex(), message.getInteger());
-				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), chunkCheckMessage, Source.pidSource);
+				long latency = chunkCheckMessage.getLatency(Network.get(0), pid);
+				EDSimulator.add(latency, chunkCheckMessage, Network.get(0), Source.pidSource);
 			}
 			if (!isInBadPeerList(message.getSender().getIndex())) {
 				addNewNeighbor(message.getSender());
@@ -100,7 +100,8 @@ public class Peer implements CDProtocol, EDProtocol
 		for (Neighbor peer : message.getArrayList()) {
 			peerList.add(peer);
 			SimpleMessage helloMessage = new SimpleMessage(SimpleEvent.HELLO, node);
-			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), helloMessage, pid);
+			long latency = helloMessage.getLatency(peer.getNode(), pid);
+			EDSimulator.add(latency, helloMessage, peer.getNode(), pid);
 		}
 	}
 

@@ -1,6 +1,8 @@
 package sim.src;
 
+import peersim.config.FastConfig;
 import peersim.core.Node;
+import peersim.transport.Transport;
 
 public class SimpleMessage extends SimpleEvent {
 
@@ -13,6 +15,12 @@ public class SimpleMessage extends SimpleEvent {
 	
 	public Node getSender() {
 		return this.sender;
+	}
+	
+	public long getLatency(Node dest, int pid) {
+		Node src = this.getSender();
+		long latency = ((Transport)src.getProtocol(FastConfig.getTransport(pid))).getLatency(src, dest);
+		return latency;
 	}
 	
 }

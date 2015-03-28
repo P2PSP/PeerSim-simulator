@@ -2,6 +2,7 @@ package sim.src;
 
 import peersim.config.*;
 import peersim.core.*;
+import peersim.edsim.EDSimulator;
 import peersim.transport.Transport;
 
 public class PeerInitializer implements Control
@@ -22,26 +23,30 @@ public class PeerInitializer implements Control
 	
 	@Override
 	public boolean execute() {
-		//set the Peer pid
 		Peer.pidPeer = pid;
 		
 		//set source as not peer
 		((Peer)Network.get(SourceInitializer.sourceIndex).getProtocol(pid)).isPeer = false;
 		
-		//set other peers as peer
+		Node source = Network.get(0);
+		
 		for(int i = 1; i < Network.size(); i++) {
-			Node source = Network.get(0);
-			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
-			((Transport)source.getProtocol(FastConfig.getTransport(pid))).send(Network.get(i), source, message, Source.pidSource);
-			((Peer)Network.get(i).getProtocol(pid)).isPeer = true;
-			
+			Node node = Network.get(i);
+			((Peer)node.getProtocol(pid)).isPeer = true;
 			if (maliciousCount > 0) {
-				((Peer)Network.get(i).getProtocol(pid)).isMalicious = true;
+				((Peer)node.getProtocol(pid)).isMalicious = true;
 				maliciousCount--;
 			} else if (trustedCount > 0) {
-				((Peer)Network.get(i).getProtocol(pid)).isTrusted = true;
+				((Peer)node.getProtocol(pid)).isTrusted = true;
 				trustedCount--;
 			}
+			
+			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
+			long latency = ((Transport)node.getProtocol(FastConfig.getTransport(Peer.pidPeer))).getLatency(node, source);
+			if (((Peer)node.getProtocol(pid)).isMalicious) {
+				latency += 200;
+			}
+			EDSimulator.add(latency, message, source, Source.pidSource);
 		}
 			
 		

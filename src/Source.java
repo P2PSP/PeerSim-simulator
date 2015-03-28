@@ -7,6 +7,7 @@ import peersim.config.FastConfig;
 import peersim.core.Network;
 import peersim.core.Node;
 import peersim.edsim.EDProtocol;
+import peersim.edsim.EDSimulator;
 import peersim.transport.Transport;
 
 
@@ -94,7 +95,10 @@ public class Source implements CDProtocol, EDProtocol
 		}
 		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, clone);
 		Node sender = receivedMessage.getSender();
-		((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, sender, message, Peer.pidPeer);
+		
+		long latency = message.getLatency(sender, pid);
+		EDSimulator.add(latency, message, sender, Peer.pidPeer);
+		
 		peerList.add(new Neighbor(receivedMessage.getSender()));
 	}
 	
@@ -117,7 +121,8 @@ public class Source implements CDProtocol, EDProtocol
 			removeNeighbor(receivedMessage.getX());
 			IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getX());
 			for (Neighbor peer : peerList) {
-				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), badPeerMessage, Peer.pidPeer);
+				long latency = badPeerMessage.getLatency(peer.getNode(), pid);
+				EDSimulator.add(latency, badPeerMessage, peer.getNode(), Peer.pidPeer);
 			}
 		}
 	}
