@@ -21,7 +21,7 @@ public class SimpleMessage extends SimpleEvent {
 		Node src = this.getSender();
 		long latency = ((Transport)src.getProtocol(FastConfig.getTransport(pid))).getLatency(src, dest);
 		if (this.getType() != SimpleEvent.CHUNK) {
-			latency /= 4;
+			latency = 1;
 		}
 		return latency;
 	}
