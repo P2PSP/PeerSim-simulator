@@ -7,7 +7,7 @@ import peersim.config.Configuration;
 import peersim.config.FastConfig;
 import peersim.core.Network;
 import peersim.core.Node;
-import peersim.edsim.EDProtocol;
+import peersim.edsim.*;
 import peersim.transport.Transport;
 
 
@@ -18,6 +18,7 @@ public class Peer implements CDProtocol, EDProtocol
 	private int bufferSize;
 	public IntMessage[] buffer;
 	public ArrayList<Neighbor> peerList;
+	public ArrayList<Integer> badPeerList;
 	public boolean isMalicious = false;
 	public boolean isTrusted = false;
 
@@ -25,6 +26,7 @@ public class Peer implements CDProtocol, EDProtocol
 		bufferSize = Configuration.getInt(prefix+".buffer_size", 32);
 		buffer = new IntMessage[bufferSize];
 		peerList = new ArrayList<Neighbor>();
+		badPeerList = new ArrayList<Integer>();
 	}
 	
 	@Override
@@ -41,7 +43,7 @@ public class Peer implements CDProtocol, EDProtocol
 			processChunkMessage(node, pid, (IntMessage)castedEvent);
 			break;
 		case SimpleEvent.PEERLIST:
-			processPeerlistMessage(node, pid, (ArrayListMessage)castedEvent);
+			processPeerlistMessage(node, pid, (ArrayListMessage<Neighbor>)castedEvent);
 			break;
 		case SimpleEvent.HELLO:
 			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
@@ -56,20 +58,41 @@ public class Peer implements CDProtocol, EDProtocol
 	}
 	
 	private void processChunkMessage(Node node, int pid, IntMessage message) {
-		//store in buffer
-		buffer[Math.abs(message.getInteger()) % buffer.length] = message;
+		storeInBuffer(node, message);
 		if(message.getSender().getIndex() == SourceInitializer.sourceIndex) { //the sender is the source
+			int latencySum = 0;
 			for (Neighbor peer : peerList) {
 				IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, message.getInteger() * (this.isMalicious ? -1 : 1));
-				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), chunkMessage, pid);
+				latencySum += chunkMessage.getLatency(peer.getNode(), pid);
+				EDSimulator.add(latencySum, chunkMessage, peer.getNode(), pid);
 			}
 		} else {
 			if (this.isTrusted) {
 				TupleMessage chunkCheckMessage = new TupleMessage(SimpleEvent.CHUNK_CHECK, node, message.getSender().getIndex(), message.getInteger());
-				((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, Network.get(0), chunkCheckMessage, Source.pidSource);
+				long latency = chunkCheckMessage.getLatency(Network.get(0), pid);
+				EDSimulator.add(latency, chunkCheckMessage, Network.get(0), Source.pidSource);
 			}
-			addNewNeighbor(message.getSender());
+			if (!isInBadPeerList(message.getSender().getIndex())) {
+				addNewNeighbor(message.getSender());
+			}
 		}
+	}
+	
+	private void storeInBuffer(Node node, IntMessage message) {
+		if (!isInBadPeerList(message.getSender().getIndex())) {
+			buffer[Math.abs(message.getInteger()) % buffer.length] = message;
+		}
+	}
+	
+	private boolean isInBadPeerList(int index) {
+		boolean isInBadPeerList = false;
+		for (int peer : badPeerList) {
+			if (peer == index) {
+				isInBadPeerList = true;
+				break;
+			}
+		}
+		return isInBadPeerList;
 	}
 	
 	private void processPeerlistMessage(Node node, int pid, ArrayListMessage<Neighbor> message) {
@@ -77,7 +100,8 @@ public class Peer implements CDProtocol, EDProtocol
 		for (Neighbor peer : message.getArrayList()) {
 			peerList.add(peer);
 			SimpleMessage helloMessage = new SimpleMessage(SimpleEvent.HELLO, node);
-			((Transport)node.getProtocol(FastConfig.getTransport(pid))).send(node, peer.getNode(), helloMessage, pid);
+			long latency = helloMessage.getLatency(peer.getNode(), pid);
+			EDSimulator.add(latency, helloMessage, peer.getNode(), pid);
 		}
 	}
 
@@ -103,6 +127,7 @@ public class Peer implements CDProtocol, EDProtocol
 	}
 	
 	private void processBadPeerMessage(Node node, int pid, IntMessage message) {
+		badPeerList.add(message.getInteger());
 		removeNeighbor(message.getInteger());
 	}
 	
