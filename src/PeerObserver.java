@@ -65,7 +65,11 @@ public class PeerObserver implements Control
 		System.out.println("This is PeerObserver. Buffers...");
 		for(int i = 1; i < Network.size(); i++) {
 			peer = (Peer) Network.get(i).getProtocol(pid);
-
+			if (peer.isMalicious) {
+				System.out.print("(A)");
+			} else if (peer.isTrusted) {
+				System.out.print("(T)");
+			}
 			System.out.print("Node "+i+" buffer: ");
 			for(int j = 0; j < peer.buffer.length; j++) {
 				if(peer.buffer[j] == null)
@@ -76,6 +80,11 @@ public class PeerObserver implements Control
 			System.out.println();
 			System.out.print("Node "+i+" neighbors: ");
 			for (Neighbor neighbor : peer.peerList) {
+				if (((Peer)neighbor.getNode().getProtocol(pid)).isMalicious) {
+					System.out.print("(A)");
+				} else if (((Peer)neighbor.getNode().getProtocol(pid)).isTrusted) {
+					System.out.print("(T)");
+				}
 				System.out.print (neighbor.getNode().getIndex() + ", ");
 			}
 			System.out.println();

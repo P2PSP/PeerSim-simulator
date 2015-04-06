@@ -46,13 +46,8 @@ public class PeerInitializer implements Control
 		for(int i = 1; i < Network.size(); i++) {
 			Node node = Network.get(i);
 			((Peer)node.getProtocol(pid)).isPeer = true;
-			
-			
 			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
-			long latency = ((Transport)node.getProtocol(FastConfig.getTransport(Peer.pidPeer))).getLatency(node, source);
-			if (((Peer)node.getProtocol(pid)).isMalicious) {
-				latency += 200;
-			}
+			long latency = CommonState.r.nextInt(Network.size());
 			EDSimulator.add(latency, message, source, Source.pidSource);
 		}
 			
