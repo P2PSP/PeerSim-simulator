@@ -1,5 +1,7 @@
 # P2PSP Simulation Project
 
+[![Join the chat at https://gitter.im/P2PSP/PeerSim-simulator](https://badges.gitter.im/P2PSP/Qt.svg)](https://gitter.im/P2PSP/PeerSim-simulator?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This is the PeerSim simulation branch for P2PSP. Its purpose is to simulate practical conditions with large sets of clients in order to obtain more knowledge about its behaviour.
 
 To run this simulations you need to download the PeerSim simulator from [PeerSim download page](http://sourceforge.net/projects/peersim/).
