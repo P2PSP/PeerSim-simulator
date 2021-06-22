@@ -1,4 +1,9 @@
-package sim.src;
+package txrelaysim.src;
+
+import txrelaysim.src.helpers.*;
+
+import java.util.HashSet;
+import java.util.HashMap;
 
 import peersim.config.*;
 import peersim.core.*;
@@ -8,50 +13,93 @@ import peersim.transport.Transport;
 public class PeerInitializer implements Control
 {
 	private int pid;
-	private int maliciousCount;
-	private int trustedCount;
-	
-    private static final String PAR_PROT = "protocol";
-    private static final String PAR_MALICIOUS_COUNT = "malicious_count";
-    private static final String PAR_TRUSTED_COUNT = "trusted_count";
-	
+	private int reachableCount;
+	private int outPeers;
+	private int inFloodDelay;
+	private int outFloodDelay;
+
+	private boolean allReconcile;
+	// Reconciliation params
+	private int outFloodPeers;
+	private int inFloodPeers;
+	private double defaultQ;
+	private int reconciliationInterval;
+
 	public PeerInitializer(String prefix) {
-		pid = Configuration.getPid(prefix + "." + PAR_PROT);
-		maliciousCount = Configuration.getInt(prefix + "." + PAR_MALICIOUS_COUNT);
-		trustedCount = Configuration.getInt(prefix + "." + PAR_TRUSTED_COUNT);
-	}	
-	
+		pid = Configuration.getPid(prefix + "." + "protocol");
+		reachableCount = Configuration.getInt(prefix + "." + "reachable_count");
+		outPeers = Configuration.getInt(prefix + "." + "out_peers");
+		inFloodDelay = Configuration.getInt(prefix + "." + "in_flood_delay");
+		outFloodDelay = Configuration.getInt(prefix + "." + "out_flood_delay");
+
+		allReconcile = Configuration.getBoolean(prefix + "." + "all_reconcile");
+		if (allReconcile) {
+			reconciliationInterval = Configuration.getInt(prefix + "." + "reconciliation_interval");
+			outFloodPeers = Configuration.getInt(prefix + "." + "out_flood_peers", outPeers);
+			inFloodPeers = Configuration.getInt(prefix + "." + "in_flood_peers");
+			defaultQ = Configuration.getDouble(prefix + "." + "default_q");
+		}
+	}
+
 	@Override
 	public boolean execute() {
 		Peer.pidPeer = pid;
-		
-		//set source as not peer
-		((Peer)Network.get(SourceInitializer.sourceIndex).getProtocol(pid)).isPeer = false;
-		
-		Node source = Network.get(0);
-		while (maliciousCount > 0) {
+
+		// Set a subset of nodes to be reachable by other nodes.
+		while (reachableCount > 0) {
 			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
-			if (!((Peer)Network.get(r).getProtocol(pid)).isMalicious && !((Peer)Network.get(r).getProtocol(pid)).isTrusted) {
-				((Peer)Network.get(r).getProtocol(pid)).isMalicious = true;
-				maliciousCount--;
+			if (!((Peer)Network.get(r).getProtocol(pid)).isReachable) {
+				((Peer)Network.get(r).getProtocol(pid)).isReachable = true;
+				reachableCount--;
 			}
 		}
-		while (trustedCount > 0) {
-			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
-			if (!((Peer)Network.get(r).getProtocol(pid)).isMalicious && !((Peer)Network.get(r).getProtocol(pid)).isTrusted) {
-				((Peer)Network.get(r).getProtocol(pid)).isTrusted = true;
-				trustedCount--;
+
+		// A list storing who is already connected to who, so that we don't make duplicate conns.
+		HashMap<Integer, HashSet<Integer>> peers = new HashMap<>();
+		for (int i = 1; i < Network.size(); i++) {
+			peers.put(i, new HashSet<>());
+			// Initial parameters setting for all nodes.
+			((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelay;
+			((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelay;
+			if (allReconcile) {
+				((Peer)Network.get(i).getProtocol(pid)).reconcile = true;
+				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
+				((Peer)Network.get(i).getProtocol(pid)).inFloodLimit = inFloodPeers;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodLimit = outFloodPeers;
+				((Peer)Network.get(i).getProtocol(pid)).defaultQ = defaultQ;
 			}
 		}
+
+		// Connect all nodes to a limited number of reachable nodes.
 		for(int i = 1; i < Network.size(); i++) {
-			Node node = Network.get(i);
-			((Peer)node.getProtocol(pid)).isPeer = true;
-			SimpleMessage message = new SimpleMessage(SimpleEvent.HELLO, Network.get(i));
-			long latency = CommonState.r.nextInt(Network.size());
-			EDSimulator.add(latency, message, source, Source.pidSource);
+			Node curNode = Network.get(i);
+			int conns = 0;
+			while (conns < outPeers) {
+				int randomNodeIndex = CommonState.r.nextInt(Network.size() - 1) + 1;
+				if (randomNodeIndex == i) {
+					continue;
+				}
+
+				Node randomNode = Network.get(randomNodeIndex);
+
+				if (!((Peer)randomNode.getProtocol(pid)).isReachable) {
+					continue;
+				}
+				if (peers.get(i).contains(randomNodeIndex) || peers.get(randomNodeIndex).contains(i)) {
+					continue;
+				}
+
+				peers.get(i).add(randomNodeIndex);
+				peers.get(randomNodeIndex).add(i);
+
+				// Actual connecting.
+				((Peer)curNode.getProtocol(pid)).addOutboundPeer(randomNode);
+				((Peer)randomNode.getProtocol(pid)).addInboundPeer(curNode);
+				++conns;
+			}
 		}
-			
-		
+
+		System.err.println("Initialized peers");
 		return true;
 	}
 }

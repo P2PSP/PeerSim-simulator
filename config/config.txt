@@ -1,35 +1,34 @@
-# network size
-SIZE 10
-
 # parameters of periodic execution
-CYCLES 200
-CYCLE SIZE*10
+# CYCLES * CYCLE = how many milliseconds the experiment would take
+# Note that the source stops issuing transactions 25 seconds before the end,
+# to let everything propagate fully.
+CYCLES 600
+CYCLE 100 # milliseconds
 
 # parameters of message transfer
 # delay values here are relative to cycle length, in percentage,
 # eg 50 means half the cycle length, 200 twice the cycle length, etc.
 MINDELAY 5
-MAXDELAY 50
+MAXDELAY 100
 # drop is a probability, 0<=DROP<=1
 DROP 0
 
 random.seed 9098797865656766578567
-network.size SIZE
+network.size 20000
 simulation.endtime CYCLE*CYCLES
-simulation.logtime CYCLE
-simulation.experiments 1000
+simulation.logtime CYCLE * 50
+simulation.experiments 1
 
 ################### protocols ===========================
 protocol.0 peersim.core.IdleProtocol
 protocol.0.step CYCLE
 
-protocol.1 sim.src.Source
+protocol.1 txrelaysim.src.Source
 protocol.1.linkable 0
-protocol.1.step CYCLE
+protocol.1.step 1000 # trigger every seconds to handle tps easier
 protocol.1.transport tr
 
-protocol.2 sim.src.Peer
-protocol.2.buffer_size 32
+protocol.2 txrelaysim.src.Peer
 protocol.2.linkable 0
 protocol.2.step CYCLE
 protocol.2.transport tr
@@ -43,13 +42,21 @@ protocol.tr.transport urt
 protocol.tr.drop DROP
 
 ################### initialization ======================
-init.1 sim.src.SourceInitializer
+init.1 txrelaysim.src.SourceInitializer
 init.1.protocol 1
+init.1.tps 7
 
-init.2 sim.src.PeerInitializer
+init.2 txrelaysim.src.PeerInitializer
 init.2.protocol 2
-init.2.malicious_count 1
-init.2.trusted_count 1
+init.2.reachable_count 2000
+init.2.out_peers 8
+init.2.in_flood_delay 2000
+init.2.out_flood_delay 1000
+init.2.all_reconcile true
+init.2.reconciliation_interval 500
+init.2.in_flood_peers 2
+init.2.out_flood_peers 2
+init.2.default_q 0.01
 
 init.sch1 CDScheduler
 init.sch1.protocol 1
@@ -59,13 +66,9 @@ init.sch2 CDScheduler
 init.sch2.protocol 2
 init.sch2.randstart
 
-
 ################ control ==============================
 
-#control.0 sim.src.PeerObserver
-#control.0.protocol 2
-#control.0.step CYCLE*1
+control.0 txrelaysim.src.InvObserver
+control.0.protocol 2
+control.0.step CYCLE * 100
 
-control.1 sim.src.PoisonedChunksObserver
-control.1.protocol 2
-control.1.step CYCLE*1
