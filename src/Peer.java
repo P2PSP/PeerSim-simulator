@@ -273,10 +273,36 @@ public class Peer implements CDProtocol, EDProtocol
 			}
 		}
 
+		// Rotate inbound flood destinations.
+		if (inFloodLimit != inboundPeers.size() && inboundPeers.size() != 0) {
+			inboundFloodDestinations.clear();
+			for (int i = 0; i < inFloodLimit;) {
+				int randomIndex = CommonState.r.nextInt(inboundPeers.size());
+				Node randomInboundPeer = inboundPeers.get(randomIndex);
+				if (!inboundFloodDestinations.contains(randomInboundPeer)) {
+					inboundFloodDestinations.add(randomInboundPeer);
+					++i;
+				}
+			}
+		}
+
 		// Send to outbounds.
 		for (Node peer : outboundFloodDestinations) {
 			long delay = generateRandomDelay(this.outFloodDelay);
 			scheduleInv(node, delay, peer, txId);
+		}
+
+		// Rotate outbound flood destinations.
+		if (outFloodLimit != outboundPeers.size() && outboundPeers.size() != 0) {
+			outboundFloodDestinations.clear();
+			for (int i = 0; i < outFloodLimit;) {
+				int randomIndex = CommonState.r.nextInt(outboundPeers.size());
+				Node randomInboundPeer = outboundPeers.get(randomIndex);
+				if (!outboundFloodDestinations.contains(randomInboundPeer)) {
+					outboundFloodDestinations.add(randomInboundPeer);
+					++i;
+				}
+			}
 		}
 	}
 
