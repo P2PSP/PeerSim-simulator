@@ -57,6 +57,7 @@ init.2.reconciliation_interval 500
 init.2.in_flood_peers 2
 init.2.out_flood_peers 2
 init.2.default_q 0.01
+init.2.private_black_holes_percent = 0
 
 init.sch1 CDScheduler
 init.sch1.protocol 1

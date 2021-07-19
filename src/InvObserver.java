@@ -65,13 +65,9 @@ public class InvObserver implements Control
 		ArrayList<Integer> failedRecons = new ArrayList<>();
 		// Track how soon transactions were propagating across the network.
 		HashMap<Integer, ArrayList<Long>> txArrivalTimes = new HashMap<Integer, ArrayList<Long>>();
+		int blackHoles = 0;
 		for(int i = 1; i < Network.size(); i++) {
 			Peer peer = (Peer) Network.get(i).getProtocol(pid);
-			extraInvs.add(peer.extraInvs);
-			shortInvs.add(peer.shortInvs);
-
-			successRecons.add(peer.successRecons);
-			failedRecons.add(peer.failedRecons);
 
 			Iterator it = peer.txArrivalTimes.entrySet().iterator();
 			while (it.hasNext()) {
@@ -83,6 +79,16 @@ public class InvObserver implements Control
 				}
 				txArrivalTimes.get(txId).add(arrivalTime);
 			}
+
+			if (peer.isBlackHole) {
+				++blackHoles;
+				continue;
+			}
+			extraInvs.add(peer.extraInvs);
+			shortInvs.add(peer.shortInvs);
+
+			successRecons.add(peer.successRecons);
+			failedRecons.add(peer.failedRecons);
 		}
 
 		// Measure the delays it took to reach majority of the nodes (based on receival time).
@@ -93,23 +99,22 @@ public class InvObserver implements Control
 			// A workaround to avoid unchecked cast.
 			ArrayList<?> ar = (ArrayList<?>) pair.getValue();
 			ArrayList<Long> arrivalTimes = new ArrayList<>();
+
+			if (ar.size() < (Network.size() - 1) * 0.99)  {
+				// Don't bother printing results if relay is in progress (some nodes didn't receive
+				// the transactions yet).
+				continue;
+			}
+
 			for (Object x : ar) {
 				arrivalTimes.add((Long) x);
 			}
 
-			if (arrivalTimes.size() < Network.size() - 1) {
-				// Don't bother printing results if relay is in progress (some nodes didn't receive
-				// all transactions yet).
-				System.err.println("Transactions are still propagating: " +
-					arrivalTimes.size() + " < " + (Network.size() - 1));
-				return false;
-			}
 	   		Collections.sort(arrivalTimes);
 			int percentile95Index = (int)(arrivalTimes.size() * 0.95);
 			Long percentile95delay = (arrivalTimes.get(percentile95Index) - arrivalTimes.get(0));
 			avgTxArrivalDelay.add(percentile95delay);
 		}
-
 
 		// Print results.
 		int allTxs = txArrivalTimes.size();
@@ -118,20 +123,30 @@ public class InvObserver implements Control
 			return false;
 		}
 
+		System.err.println("Relayed txs: " + allTxs);
+
 		double avgMaxDelay = avgTxArrivalDelay.stream().mapToLong(val -> val).average().orElse(0.0);
 		System.out.println("Avg max latency: " + avgMaxDelay);
 
-		double avgExtraInvs = extraInvs.stream().mapToInt(val -> val).average().orElse(0.0);
-		System.out.println(avgExtraInvs / allTxs + " extra inv per tx on average.");
+		if (blackHoles == 0) {
+			// Note that black holes are only useful to measure latency
+			// impact, measuring/comparing bandwidth is currently not supported because it depends
+			// on how exactly black holes operate (do they reconcile with empty sketches? or drop
+			// sketches/requests on the floor?).
+			double avgExtraInvs = extraInvs.stream().mapToInt(val -> val).average().orElse(0.0);
+			System.out.println(avgExtraInvs / allTxs + " extra inv per tx on average.");
 
-		double avgShortInvs = shortInvs.stream().mapToInt(val -> val).average().orElse(0.0);
-		System.out.println(avgShortInvs / allTxs + " shortInvs per tx on average.");
+			double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
+			if (avgSuccessRecons > 0) {
+				System.out.println(avgSuccessRecons + " successful recons on average.");
 
-		double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
-		System.out.println(avgSuccessRecons + " successful recons on average.");
+				double avgFailedRecons = failedRecons.stream().mapToInt(val -> val).average().orElse(0.0);
+				System.out.println(avgFailedRecons + " failed recons on average.");
 
-		double avgFailedRecons = failedRecons.stream().mapToInt(val -> val).average().orElse(0.0);
-		System.out.println(avgFailedRecons + " failed recons on average.");
+				double avgShortInvs = shortInvs.stream().mapToInt(val -> val).average().orElse(0.0);
+				System.out.println(avgShortInvs / allTxs + " shortInvs per tx on average.");
+			}
+		}
 
 		return false;
 	}

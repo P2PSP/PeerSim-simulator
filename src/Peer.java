@@ -37,6 +37,7 @@ public class Peer implements CDProtocol, EDProtocol
 
 	/* State */
 	public boolean isReachable = false;
+	public boolean isBlackHole = false;
 	public ArrayList<Node> outboundPeers;
 	public ArrayList<Node> inboundPeers;
 	public ArrayList<Node> inboundFloodDestinations;
@@ -253,6 +254,14 @@ public class Peer implements CDProtocol, EDProtocol
 	}
 
 	private void relayTx(Node node, int pid, int txId, Node sender) {
+		if (isBlackHole) {
+			// Black holes don't relay. Note that black holes are only useful to measure latency
+			// impact, measuring/comparing bandwidth is currently not supported because it depends
+			// on how exactly black holes operate (do they reconcile with empty sketches? or drop
+			// sketches/requests on the floor?).
+			return;
+		}
+
 		if (reconcile) {
 			addToReconSets(node, pid, txId, sender);
 		}

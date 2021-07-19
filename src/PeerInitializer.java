@@ -14,6 +14,7 @@ public class PeerInitializer implements Control
 {
 	private int pid;
 	private int reachableCount;
+	private int privateBlackHolesPercent;
 	private int outPeers;
 	private int inFloodDelay;
 	private int outFloodDelay;
@@ -32,6 +33,7 @@ public class PeerInitializer implements Control
 		inFloodDelay = Configuration.getInt(prefix + "." + "in_flood_delay");
 		outFloodDelay = Configuration.getInt(prefix + "." + "out_flood_delay");
 
+		privateBlackHolesPercent = Configuration.getInt(prefix + "." + "private_black_holes_percent", 0);
 		allReconcile = Configuration.getBoolean(prefix + "." + "all_reconcile");
 		if (allReconcile) {
 			reconciliationInterval = Configuration.getInt(prefix + "." + "reconciliation_interval");
@@ -45,14 +47,25 @@ public class PeerInitializer implements Control
 	public boolean execute() {
 		Peer.pidPeer = pid;
 
+		int privateBlackHolesCount = (Network.size() - reachableCount) * privateBlackHolesPercent / 100;
 		// Set a subset of nodes to be reachable by other nodes.
 		while (reachableCount > 0) {
 			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
 			if (!((Peer)Network.get(r).getProtocol(pid)).isReachable) {
 				((Peer)Network.get(r).getProtocol(pid)).isReachable = true;
-				reachableCount--;
+				--reachableCount;
 			}
 		}
+
+		System.err.println("Black holes: " + privateBlackHolesCount);
+		while (privateBlackHolesCount > 0) {
+			int r = CommonState.r.nextInt(Network.size() - 1) + 1;
+			if (!((Peer)Network.get(r).getProtocol(pid)).isReachable) {
+				((Peer)Network.get(r).getProtocol(pid)).isBlackHole = true;
+				--privateBlackHolesCount;
+			}
+		}
+		System.err.println("Black holes: " + privateBlackHolesCount);
 
 		// A list storing who is already connected to who, so that we don't make duplicate conns.
 		HashMap<Integer, HashSet<Integer>> peers = new HashMap<>();
