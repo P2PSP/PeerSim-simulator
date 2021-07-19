@@ -274,7 +274,7 @@ public class Peer implements CDProtocol, EDProtocol
 		}
 
 		// Rotate inbound flood destinations.
-		if (inFloodLimit != inboundPeers.size() && inboundPeers.size() != 0) {
+		if (reconcile && inFloodLimit != inboundPeers.size() && inboundPeers.size() != 0) {
 			inboundFloodDestinations.clear();
 			for (int i = 0; i < inFloodLimit;) {
 				int randomIndex = CommonState.r.nextInt(inboundPeers.size());
@@ -293,7 +293,7 @@ public class Peer implements CDProtocol, EDProtocol
 		}
 
 		// Rotate outbound flood destinations.
-		if (outFloodLimit != outboundPeers.size() && outboundPeers.size() != 0) {
+		if (reconcile && outFloodLimit != outboundPeers.size() && outboundPeers.size() != 0) {
 			outboundFloodDestinations.clear();
 			for (int i = 0; i < outFloodLimit;) {
 				int randomIndex = CommonState.r.nextInt(outboundPeers.size());

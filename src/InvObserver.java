@@ -100,7 +100,8 @@ public class InvObserver implements Control
 			if (arrivalTimes.size() < Network.size() - 1) {
 				// Don't bother printing results if relay is in progress (some nodes didn't receive
 				// all transactions yet).
-				System.err.println("Transactions are still propagating");
+				System.err.println("Transactions are still propagating: " +
+					arrivalTimes.size() + " < " + (Network.size() - 1));
 				return false;
 			}
 	   		Collections.sort(arrivalTimes);
