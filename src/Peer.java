@@ -154,12 +154,13 @@ public class Peer implements CDProtocol, EDProtocol
 		long curTime = CommonState.getTime();
 		long delay;
 		if (nextReconResponse < curTime) {
-			delay = 0;
-			// Switch to sketch fanout batching delay.
-			nextReconResponse = curTime + generateRandomDelay(0);
+			delay = generateRandomDelay(inFloodDelay / 2);
+			nextReconResponse = curTime + delay;
 		} else {
 			delay = nextReconResponse - curTime;
 		}
+		// TODO: it would be more efficient to batch them, and use a loop to check it.
+		// A loop would help to not store scheduled messages in memory.
 		SimpleMessage scheduledSketch = new SimpleMessage(SimpleEvent.SCHEDULED_SKETCH, sender);
 		EDSimulator.add(delay, scheduledSketch, node, Peer.pidPeer); // send to self.
 	}
