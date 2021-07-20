@@ -54,8 +54,9 @@ public class Peer implements CDProtocol, EDProtocol
 	private HashMap<Node, HashSet<Integer>> reconSets;
 
 	/* Stats */
-	public int extraInvs;
-	public int shortInvs;
+	public int invsSent;
+	public int shortInvsSent;
+
 	public int successRecons;
 	public int extSuccessRecons;
 	public int failedRecons;
@@ -123,6 +124,10 @@ public class Peer implements CDProtocol, EDProtocol
 			// Self-scheduled SKETCH to be sent to a peer.
 			executeScheduledSketch(node, pid, (SimpleMessage)castedEvent);
 			break;
+		case SimpleEvent.RECON_FINALIZATION:
+			// We use this to track how many inv/shortinvs messages were sent for statas.
+			handleReconFinalization(node, pid, (ArrayListMessage)castedEvent);
+			break;
 		}
 	}
 
@@ -143,8 +148,6 @@ public class Peer implements CDProtocol, EDProtocol
 		if (!txArrivalTimes.keySet().contains(txId)) {
 			txArrivalTimes.put(txId, CommonState.getTime());
 			relayTx(node, pid, txId, sender);
-		} else {
-			++extraInvs;
 		}
 	}
 
@@ -170,15 +173,6 @@ public class Peer implements CDProtocol, EDProtocol
 	// easily modeled and accounted at this node locally.
 	private void handleSketchMessage(Node node, int pid, Node sender, ArrayList<Integer> remoteSet) {
 		Set<Integer> localSet = reconSets.get(sender);
-
-		// Although diff estimation should happen at the sketch sender side, we do it here because
-		// it works in our simplified model, to save extra messages.
-		// To make it more detailed, we could remember the set size at request time here.
-		int localSetSize = localSet.size();
-		int remoteSetSize = remoteSet.size();
-		// TODO: Q could be dynamicly updated after each reconciliation.
-		int capacity = Math.abs(localSetSize - remoteSetSize) + (int)(defaultQ * (localSetSize + remoteSetSize)) + 1;
-
 		int shared = 0, usMiss = 0, theyMiss = 0;
 		// Handle transactions the local (sketch receiving) node doesn't have.
 		for (Integer txId : remoteSet) {
@@ -188,11 +182,13 @@ public class Peer implements CDProtocol, EDProtocol
 			} else {
 				++usMiss;
 				if (!txArrivalTimes.keySet().contains(txId)) {
-					// This rarely happens.
 					txArrivalTimes.put(txId, CommonState.getTime());
 					relayTx(node, pid, txId, sender);
 				} else {
-					++extraInvs;
+					// This is an edge case: sometimes a local set doesn't have a transaction
+					// although we did receive/record it. It happens when we announce a transaction
+					// to the peer and remove from the set while the peer sends us a sketch
+					// including the same transaction.
 				}
 			}
 		}
@@ -207,23 +203,58 @@ public class Peer implements CDProtocol, EDProtocol
 
 		// Compute the cost of this sketch exchange.
 		int diff = usMiss + theyMiss;
+		// This is a technicality of the simulator: in the finalization message we will notify
+		// the node how much INV they supposedly sent us in this reconciliation round.
+		int theySentInvs = 0, theySentShortInvs = 0;
+
+		// Although diff estimation should happen at the sketch sender side, we do it here because
+		// it works in our simplified model, to save extra messages.
+		// To make it more detailed, we could remember the set size at request time here.
+		int localSetSize = localSet.size();
+		int remoteSetSize = remoteSet.size();
+		// TODO: Q could be dynamicly updated after each reconciliation.
+		int capacity = Math.abs(localSetSize - remoteSetSize) + (int)(defaultQ * (localSetSize + remoteSetSize)) + 1;
 		if (capacity > diff) {
 			// Reconciliation succeeded right away.
-			shortInvs += capacity; // account for sketch
 			successRecons++;
+			theySentShortInvs = capacity; // account for sketch
+			shortInvsSent += usMiss;
+			theySentInvs += usMiss;
 		} else if (capacity * 2 > diff) {
 			// Reconciliation succeeded after extension.
-			shortInvs += capacity * 2;  // account for sketch and extension
 			extSuccessRecons++;
+			theySentShortInvs = capacity * 2;  // account for sketch and extension
+			shortInvsSent += usMiss;
+			theySentInvs += usMiss;
 		} else {
 			// Reconciliation failed.
-			shortInvs += capacity * 2;  // account for sketch and extension
+			failedRecons++;
+			theySentShortInvs = capacity * 2;  // account for sketch and extension
 			// Above, we already sent them invs they miss.
 			// Here, we just account for all the remaining full invs: what we miss, and shared txs.
-			extraInvs += usMiss + shared;
-			failedRecons++;
+			// I think ideally the "inefficient" overlap between our set and their set should
+			// be sent by us, hence the accounting below.
+			invsSent += shared;
+			theySentInvs = usMiss;
 		}
+
+    	ArrayList<Integer> finalizationData = new ArrayList<Integer>();
+		finalizationData.add(theySentInvs);
+		finalizationData.add(theySentShortInvs);
+
+		// System.err.println(theySentShortInvs);
+
+		ArrayListMessage<Integer> reconFinalization = new ArrayListMessage<Integer>(
+			SimpleEvent.RECON_FINALIZATION, node, finalizationData);
+		((Transport)sender.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(
+			node, sender, reconFinalization, Peer.pidPeer);
+
 		localSet.clear();
+	}
+
+	private void handleReconFinalization(Node node, int pid, ArrayListMessage message) {
+		invsSent += (Integer)message.getArrayList().get(0);
+		shortInvsSent += (Integer)message.getArrayList().get(1);
 	}
 
 	// A node previously scheduled a transaction announcement to the peer. Execute it here when
@@ -235,6 +266,7 @@ public class Peer implements CDProtocol, EDProtocol
 			peerKnowsTxs.get(recipient).add(txId);
 			IntMessage inv = new IntMessage(SimpleEvent.INV, node, txId);
 			((Transport)recipient.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, recipient, inv, Peer.pidPeer);
+			++invsSent;
 			if (reconcile) {
 				removeFromReconSet(node, txId, recipient);
 			}

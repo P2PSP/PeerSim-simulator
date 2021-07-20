@@ -58,8 +58,8 @@ public class InvObserver implements Control
 
 	public boolean execute() {
 		// Track how many invs were sent.
-		ArrayList<Integer> extraInvs = new ArrayList<>();
-		ArrayList<Integer> shortInvs = new ArrayList<>();
+		ArrayList<Integer> invsSent = new ArrayList<>();
+		ArrayList<Integer> shortInvsSent = new ArrayList<>();
 		// Track reconciliation results across experiments.
 		ArrayList<Integer> successRecons = new ArrayList<>();
 		ArrayList<Integer> failedRecons = new ArrayList<>();
@@ -84,8 +84,8 @@ public class InvObserver implements Control
 				++blackHoles;
 				continue;
 			}
-			extraInvs.add(peer.extraInvs);
-			shortInvs.add(peer.shortInvs);
+			invsSent.add(peer.invsSent);
+			shortInvsSent.add(peer.shortInvsSent);
 
 			successRecons.add(peer.successRecons);
 			failedRecons.add(peer.failedRecons);
@@ -133,8 +133,8 @@ public class InvObserver implements Control
 			// impact, measuring/comparing bandwidth is currently not supported because it depends
 			// on how exactly black holes operate (do they reconcile with empty sketches? or drop
 			// sketches/requests on the floor?).
-			double avgExtraInvs = extraInvs.stream().mapToInt(val -> val).average().orElse(0.0);
-			System.out.println(avgExtraInvs / allTxs + " extra inv per tx on average.");
+			double avgInvsSent = invsSent.stream().mapToInt(val -> val).average().orElse(0.0);
+			System.out.println(avgInvsSent / allTxs + " invs per tx on average.");
 
 			double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 			if (avgSuccessRecons > 0) {
@@ -143,8 +143,8 @@ public class InvObserver implements Control
 				double avgFailedRecons = failedRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 				System.out.println(avgFailedRecons + " failed recons on average.");
 
-				double avgShortInvs = shortInvs.stream().mapToInt(val -> val).average().orElse(0.0);
-				System.out.println(avgShortInvs / allTxs + " shortInvs per tx on average.");
+				double avgShortInvsSent = shortInvsSent.stream().mapToInt(val -> val).average().orElse(0.0);
+				System.out.println(avgShortInvsSent / allTxs + " shortInvs per tx on average.");
 			}
 		}
 
