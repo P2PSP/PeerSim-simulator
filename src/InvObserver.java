@@ -57,16 +57,17 @@ public class InvObserver implements Control
 	}
 
 	public boolean execute() {
-		// Track how many invs were sent.
-		ArrayList<Integer> invsSent = new ArrayList<>();
-		ArrayList<Integer> shortInvsSent = new ArrayList<>();
-		ArrayList<Integer> txSent = new ArrayList<>();
+		// Track how many invs were sent. Reachable nodes are tracked by [0], private are tracked
+		// by [1].
+		int[] invsSent = new int[2];
+		int[] shortInvsSent = new int[2];
+		int[] txSent = new int[2];
 		// Track reconciliation results across experiments.
 		ArrayList<Integer> successRecons = new ArrayList<>();
 		ArrayList<Integer> failedRecons = new ArrayList<>();
 		// Track how soon transactions were propagating across the network.
 		HashMap<Integer, ArrayList<Long>> txArrivalTimes = new HashMap<Integer, ArrayList<Long>>();
-		int blackHoles = 0;
+		int blackHoles = 0, reachableNodes = 0;
 		for(int i = 1; i < Network.size(); i++) {
 			Peer peer = (Peer) Network.get(i).getProtocol(pid);
 
@@ -85,9 +86,17 @@ public class InvObserver implements Control
 				++blackHoles;
 				continue;
 			}
-			invsSent.add(peer.invsSent);
-			shortInvsSent.add(peer.shortInvsSent);
-			txSent.add(peer.txSent);
+
+			if (peer.isReachable) {
+				invsSent[0] += peer.invsSent;
+				shortInvsSent[0] += peer.shortInvsSent;
+				txSent[0] += peer.txSent;
+				++reachableNodes;
+			} else {
+				invsSent[1] += peer.invsSent;
+				shortInvsSent[1] += peer.shortInvsSent;
+				txSent[1] += peer.txSent;
+			}
 
 			successRecons.add(peer.successRecons);
 			failedRecons.add(peer.failedRecons);
@@ -135,11 +144,20 @@ public class InvObserver implements Control
 			// impact, measuring/comparing bandwidth is currently not supported because it depends
 			// on how exactly black holes operate (do they reconcile with empty sketches? or drop
 			// sketches/requests on the floor?).
-			double avgInvsSent = invsSent.stream().mapToInt(val -> val).average().orElse(0.0);
-			System.out.println(avgInvsSent / allTxs + " invs per tx on average.");
 
-			double avgTxSent = txSent.stream().mapToInt(val -> val).average().orElse(0.0);
-			assert(0.99 < avgTxSent && avgTxSent < 1.01);
+			System.out.println("Total bandwidth per tx:");
+			System.out.println("INV items: " + (invsSent[0] + invsSent[1] +
+				(shortInvsSent[0] + shortInvsSent[1]) * 0.25) / allTxs / (Network.size() - 1));
+			System.out.println("TX items: " + (txSent[0] + txSent[1]) * 1.0 / allTxs / (Network.size() - 1));
+
+			System.out.println("An average reachable node spends the following bandwidth per tx:");
+			System.out.println("INV items: " + (invsSent[0] + shortInvsSent[0] * 0.25) / allTxs / reachableNodes);
+			System.out.println("TX items: " + txSent[0] * 1.0 / allTxs / reachableNodes);
+
+			int privateNodes = Network.size() - 1 - reachableNodes;
+			System.out.println("An average private node spends the following bandwidth per tx:");
+			System.out.println("INV items: " + (invsSent[1] + shortInvsSent[1] * 0.25) / allTxs / privateNodes);
+			System.out.println("TX items: " + txSent[1] * 1.0 / allTxs / privateNodes);
 
 			double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 			if (avgSuccessRecons > 0) {
@@ -147,12 +165,9 @@ public class InvObserver implements Control
 
 				double avgFailedRecons = failedRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 				System.out.println(avgFailedRecons + " failed recons on average.");
-
-				double avgShortInvsSent = shortInvsSent.stream().mapToInt(val -> val).average().orElse(0.0);
-				System.out.println(avgShortInvsSent / allTxs + " shortInvs per tx on average.");
 			}
 		}
-
+		System.err.println("");
 		return false;
 	}
 }
