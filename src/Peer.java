@@ -56,6 +56,7 @@ public class Peer implements CDProtocol, EDProtocol
 	/* Stats */
 	public int invsSent;
 	public int shortInvsSent;
+	public int txSent;
 
 	public int successRecons;
 	public int extSuccessRecons;
@@ -128,6 +129,11 @@ public class Peer implements CDProtocol, EDProtocol
 			// We use this to track how many inv/shortinvs messages were sent for statas.
 			handleReconFinalization(node, pid, (ArrayListMessage)castedEvent);
 			break;
+		case SimpleEvent.GETDATA:
+			// We use this just for bandwidth accounting, the actual txId (what we need) was already
+			// commnunicated so nothing to do here.
+			++txSent;
+			break;
 		}
 	}
 
@@ -146,6 +152,8 @@ public class Peer implements CDProtocol, EDProtocol
 		}
 
 		if (!txArrivalTimes.keySet().contains(txId)) {
+			SimpleMessage getdata = new SimpleMessage(SimpleEvent.GETDATA, node);
+			((Transport)sender.getProtocol(FastConfig.getTransport(pid))).send(node, sender, getdata, Peer.pidPeer);
 			txArrivalTimes.put(txId, CommonState.getTime());
 			relayTx(node, pid, txId, sender);
 		}
@@ -182,6 +190,8 @@ public class Peer implements CDProtocol, EDProtocol
 			} else {
 				++usMiss;
 				if (!txArrivalTimes.keySet().contains(txId)) {
+					SimpleMessage getdata = new SimpleMessage(SimpleEvent.GETDATA, node);
+					((Transport)sender.getProtocol(FastConfig.getTransport(pid))).send(node, sender, getdata, Peer.pidPeer);
 					txArrivalTimes.put(txId, CommonState.getTime());
 					relayTx(node, pid, txId, sender);
 				} else {

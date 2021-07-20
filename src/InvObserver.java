@@ -60,6 +60,7 @@ public class InvObserver implements Control
 		// Track how many invs were sent.
 		ArrayList<Integer> invsSent = new ArrayList<>();
 		ArrayList<Integer> shortInvsSent = new ArrayList<>();
+		ArrayList<Integer> txSent = new ArrayList<>();
 		// Track reconciliation results across experiments.
 		ArrayList<Integer> successRecons = new ArrayList<>();
 		ArrayList<Integer> failedRecons = new ArrayList<>();
@@ -86,6 +87,7 @@ public class InvObserver implements Control
 			}
 			invsSent.add(peer.invsSent);
 			shortInvsSent.add(peer.shortInvsSent);
+			txSent.add(peer.txSent);
 
 			successRecons.add(peer.successRecons);
 			failedRecons.add(peer.failedRecons);
@@ -135,6 +137,9 @@ public class InvObserver implements Control
 			// sketches/requests on the floor?).
 			double avgInvsSent = invsSent.stream().mapToInt(val -> val).average().orElse(0.0);
 			System.out.println(avgInvsSent / allTxs + " invs per tx on average.");
+
+			double avgTxSent = txSent.stream().mapToInt(val -> val).average().orElse(0.0);
+			assert(0.99 < avgTxSent && avgTxSent < 1.01);
 
 			double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 			if (avgSuccessRecons > 0) {
