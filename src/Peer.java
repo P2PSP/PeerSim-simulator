@@ -28,8 +28,8 @@ public class Peer implements CDProtocol, EDProtocol
 	public static int pidPeer;
 
 	/* Constants and delays. Reconciliation only! */
-	public int inFloodLimit;
-	public int outFloodLimit;
+	public double inFloodLimitPercent;
+	public double outFloodLimitPercent;
 	public int reconciliationInterval;
 	public int inFloodDelay;
 	public int outFloodDelay;
@@ -40,8 +40,6 @@ public class Peer implements CDProtocol, EDProtocol
 	public boolean isBlackHole = false;
 	public ArrayList<Node> outboundPeers;
 	public ArrayList<Node> inboundPeers;
-	public ArrayList<Node> inboundFloodDestinations;
-	public ArrayList<Node> outboundFloodDestinations;
 	public HashMap<Integer, Long> txArrivalTimes;
 	public HashMap<Node, HashSet<Integer>> peerKnowsTxs;
 	public long nextFloodInbound = 0;
@@ -50,7 +48,7 @@ public class Peer implements CDProtocol, EDProtocol
 	public boolean reconcile = false;
 	public Queue<Node> reconciliationQueue;
 	public long nextRecon = 0;
-	public long nextReconResponse = 0;
+	private HashMap<Node, Long> nextReconResponse;
 	private HashMap<Node, HashSet<Integer>> reconSets;
 
 	/* Stats */
@@ -65,12 +63,11 @@ public class Peer implements CDProtocol, EDProtocol
 	public Peer(String prefix) {
 		inboundPeers = new ArrayList<>();
 		outboundPeers = new ArrayList<>();
-		inboundFloodDestinations = new ArrayList<>();
-		outboundFloodDestinations = new ArrayList<>();
 		reconciliationQueue = new LinkedList<>();
 		reconSets = new HashMap<>();
 		peerKnowsTxs = new HashMap<>();
 		txArrivalTimes = new HashMap<>();
+		nextReconResponse = new HashMap<>();
 	}
 
 	public Object clone() {
@@ -121,10 +118,6 @@ public class Peer implements CDProtocol, EDProtocol
 			// Self-scheduled INV to be sent to a peer.
 			executeScheduledInv(node, pid, (TupleMessage)castedEvent);
 			break;
-		case SimpleEvent.SCHEDULED_SKETCH:
-			// Self-scheduled SKETCH to be sent to a peer.
-			executeScheduledSketch(node, pid, (SimpleMessage)castedEvent);
-			break;
 		case SimpleEvent.RECON_FINALIZATION:
 			// We use this to track how many inv/shortinvs messages were sent for statas.
 			handleReconFinalization(node, pid, (ArrayListMessage)castedEvent);
@@ -163,17 +156,13 @@ public class Peer implements CDProtocol, EDProtocol
 		Node sender = message.getSender();
 
 		long curTime = CommonState.getTime();
-		long delay;
-		if (nextReconResponse < curTime) {
-			delay = generateRandomDelay(inFloodDelay / 2);
-			nextReconResponse = curTime + delay;
-		} else {
-			delay = nextReconResponse - curTime;
+		HashSet<Integer> reconSet = reconSets.get(sender);
+		ArrayListMessage<Integer> sketch = new ArrayListMessage<Integer>(SimpleEvent.SKETCH, node, new ArrayList<Integer>(reconSet));
+		((Transport)sender.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, sender, sketch, Peer.pidPeer);
+		for (Integer txId: reconSet) {
+			peerKnowsTxs.get(sender).add(txId);
 		}
-		// TODO: it would be more efficient to batch them, and use a loop to check it.
-		// A loop would help to not store scheduled messages in memory.
-		SimpleMessage scheduledSketch = new SimpleMessage(SimpleEvent.SCHEDULED_SKETCH, sender);
-		EDSimulator.add(delay, scheduledSketch, node, Peer.pidPeer); // send to self.
+		reconSet.clear();
 	}
 
 	// Handle a sketch a peer sent us in response to our request. All sketch extension logic and
@@ -206,8 +195,10 @@ public class Peer implements CDProtocol, EDProtocol
 		// Handle transactions which the remote (sketch sending) node doesn't have.
 		for (Integer txId : localSet) {
 			if (!remoteSet.contains(txId)) {
-				scheduleInv(node, 0, sender, txId);
 				theyMiss++;
+				IntMessage inv = new IntMessage(SimpleEvent.INV, node, txId);
+				((Transport)sender.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, sender, inv, Peer.pidPeer);
+				++invsSent;
 			}
 		}
 
@@ -274,26 +265,39 @@ public class Peer implements CDProtocol, EDProtocol
 		int txId = scheduledInv.getY();
 		if (!peerKnowsTxs.get(recipient).contains(txId)) {
 			peerKnowsTxs.get(recipient).add(txId);
-			IntMessage inv = new IntMessage(SimpleEvent.INV, node, txId);
-			((Transport)recipient.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, recipient, inv, Peer.pidPeer);
-			++invsSent;
+
+			Boolean flood = false;
 			if (reconcile) {
-				removeFromReconSet(node, txId, recipient);
+				int indexAmongOutbounds = outboundPeers.indexOf(recipient);
+				int indexAmongInbounds = inboundPeers.indexOf(recipient);
+				if (indexAmongOutbounds != -1) {
+					if (outFloodLimitPercent != 0) {
+						int reverseFloodProbability = (int)(100.0 / outFloodLimitPercent);
+						if ((indexAmongOutbounds % reverseFloodProbability) == (txId % reverseFloodProbability)) flood = true;
+					}
+				} else if (indexAmongInbounds != -1) {
+					if (inFloodLimitPercent != 0) {
+						int reverseFloodProbability = (int)(100.0 / inFloodLimitPercent);
+						if ((indexAmongInbounds % reverseFloodProbability) == (txId % reverseFloodProbability)) flood = true;
+					}
+				}
+
+				if (flood) {
+					removeFromReconSet(node, txId, recipient);
+				} else {
+					reconSets.get(recipient).add(txId);
+				}
+				// System.err.println(flood);
+			} else {
+				flood = true;
+			}
+
+			if (flood) {
+				IntMessage inv = new IntMessage(SimpleEvent.INV, node, txId);
+				((Transport)recipient.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, recipient, inv, Peer.pidPeer);
+				++invsSent;
 			}
 		}
-	}
-
-	// A node previously scheduled a sketch transmission to the peer. Execute it here when
-	// this function is called by the scheduler.
-	private void executeScheduledSketch(Node node, int pid, SimpleMessage scheduledSketch) {
-		Node recipient = scheduledSketch.getSender();
-		HashSet<Integer> reconSet = reconSets.get(recipient);
-		ArrayListMessage<Integer> sketch = new ArrayListMessage<Integer>(SimpleEvent.SKETCH, node, new ArrayList<Integer>(reconSet));
-		((Transport)recipient.getProtocol(FastConfig.getTransport(Peer.pidPeer))).send(node, recipient, sketch, Peer.pidPeer);
-		for (Integer txId: reconSet) {
-			peerKnowsTxs.get(recipient).add(txId);
-		}
-		reconSet.clear();
 	}
 
 	private void relayTx(Node node, int pid, int txId, Node sender) {
@@ -305,64 +309,26 @@ public class Peer implements CDProtocol, EDProtocol
 			return;
 		}
 
-		if (reconcile) {
-			addToReconSets(node, pid, txId, sender);
-		}
-		flood(node, pid, sender, txId);
-	}
-
-	private void flood(Node node, int pid, Node sender, int txId) {
-		// Send to inbounds.
-		for (Node peer : inboundFloodDestinations) {
-			long curTime = CommonState.getTime();
-			// To preserve privacy against inbound observers with multiple connections,
-			// they share the timer (as in the Bitcoin peer-to-peer layer).
-			if (nextFloodInbound < curTime) {
-				scheduleInv(node, 0, peer, txId);
-				nextFloodInbound = curTime + generateRandomDelay(this.inFloodDelay);
-			} else {
-				scheduleInv(node, nextFloodInbound - curTime, peer, txId);
-			}
+		// Send to inbounds (flood or recon).
+		// To preserve privacy against inbound observers with multiple connections,
+		// they share the timer (as in the Bitcoin peer-to-peer layer).
+		long delay;
+		long curTime = CommonState.getTime();
+		if (nextFloodInbound < curTime) {
+			nextFloodInbound = curTime + generateRandomDelay(this.inFloodDelay);
+			delay = 0;
+		} else {
+			delay = nextFloodInbound - curTime;
 		}
 
-		// Rotate inbound flood destinations.
-		if (reconcile && inFloodLimit != inboundPeers.size() && inboundPeers.size() != 0) {
-			inboundFloodDestinations.clear();
-			for (int i = 0; i < inFloodLimit;) {
-				int randomIndex = CommonState.r.nextInt(inboundPeers.size());
-				Node randomInboundPeer = inboundPeers.get(randomIndex);
-				if (!inboundFloodDestinations.contains(randomInboundPeer)) {
-					inboundFloodDestinations.add(randomInboundPeer);
-					++i;
-				}
-			}
-		}
-
-		// Send to outbounds.
-		for (Node peer : outboundFloodDestinations) {
-			long delay = generateRandomDelay(this.outFloodDelay);
+		for (Node peer : inboundPeers) {
 			scheduleInv(node, delay, peer, txId);
 		}
 
-		// Rotate outbound flood destinations.
-		if (reconcile && outFloodLimit != outboundPeers.size() && outboundPeers.size() != 0) {
-			outboundFloodDestinations.clear();
-			for (int i = 0; i < outFloodLimit;) {
-				int randomIndex = CommonState.r.nextInt(outboundPeers.size());
-				Node randomInboundPeer = outboundPeers.get(randomIndex);
-				if (!outboundFloodDestinations.contains(randomInboundPeer)) {
-					outboundFloodDestinations.add(randomInboundPeer);
-					++i;
-				}
-			}
-		}
-	}
-
-	private void addToReconSets(Node node, int pid, int txId, Node sender) {
-		for (Node n: reconSets.keySet()) {
-			if (n != sender) {
-				reconSets.get(n).add(txId);
-			}
+		// Send to outbounds.
+		for (Node peer : outboundPeers) {
+			delay = generateRandomDelay(this.outFloodDelay);
+			scheduleInv(node, delay, peer, txId);
 		}
 	}
 
@@ -406,11 +372,7 @@ public class Peer implements CDProtocol, EDProtocol
 			inboundPeers.add(inboundPeer);
 			if (reconcile) {
 				reconSets.put(inboundPeer, new HashSet<>());
-				if (inboundFloodDestinations.size() < inFloodLimit) {
-					inboundFloodDestinations.add(inboundPeer);
-				}
-			} else {
-				inboundFloodDestinations.add(inboundPeer);
+				nextReconResponse.put(inboundPeer, Long.valueOf(0));
 			}
 			peerKnowsTxs.put(inboundPeer, new HashSet<>());
 		}
@@ -429,11 +391,7 @@ public class Peer implements CDProtocol, EDProtocol
 			if (reconcile) {
 				reconciliationQueue.offer(outboundPeer);
 				reconSets.put(outboundPeer, new HashSet<>());
-				if (outboundFloodDestinations.size() < outFloodLimit) {
-					outboundFloodDestinations.add(outboundPeer);
-				}
-			} else {
-				outboundFloodDestinations.add(outboundPeer);
+				nextReconResponse.put(outboundPeer, Long.valueOf(0));
 			}
 			peerKnowsTxs.put(outboundPeer, new HashSet<>());
 		}

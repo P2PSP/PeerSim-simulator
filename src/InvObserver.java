@@ -148,16 +148,17 @@ public class InvObserver implements Control
 			System.out.println("Total bandwidth per tx:");
 			System.out.println("INV items: " + (invsSent[0] + invsSent[1] +
 				(shortInvsSent[0] + shortInvsSent[1]) * 0.25) / allTxs / (Network.size() - 1));
+			System.out.println("Of them short invs: " + ((shortInvsSent[0] + shortInvsSent[1]) * 0.25) / allTxs / (Network.size() - 1));
 			System.out.println("TX items: " + (txSent[0] + txSent[1]) * 1.0 / allTxs / (Network.size() - 1));
 
-			System.out.println("An average reachable node spends the following bandwidth per tx:");
-			System.out.println("INV items: " + (invsSent[0] + shortInvsSent[0] * 0.25) / allTxs / reachableNodes);
-			System.out.println("TX items: " + txSent[0] * 1.0 / allTxs / reachableNodes);
+			System.out.println("An average reachable node spends the following bandwidth:");
+			System.out.println("INV items: " + (invsSent[0] + shortInvsSent[0] * 0.25));
+			System.out.println("TX items: " + txSent[0]);
 
 			int privateNodes = Network.size() - 1 - reachableNodes;
-			System.out.println("An average private node spends the following bandwidth per tx:");
-			System.out.println("INV items: " + (invsSent[1] + shortInvsSent[1] * 0.25) / allTxs / privateNodes);
-			System.out.println("TX items: " + txSent[1] * 1.0 / allTxs / privateNodes);
+			System.out.println("An average private node spends the following bandwidth:");
+			System.out.println("INV items: " + (invsSent[1] + shortInvsSent[1] * 0.25));
+			System.out.println("TX items: " + txSent[1]);
 
 			double avgSuccessRecons = successRecons.stream().mapToInt(val -> val).average().orElse(0.0);
 			if (avgSuccessRecons > 0) {

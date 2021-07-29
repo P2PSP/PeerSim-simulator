@@ -21,8 +21,8 @@ public class PeerInitializer implements Control
 
 	private boolean allReconcile;
 	// Reconciliation params
-	private int outFloodPeers;
-	private int inFloodPeers;
+	private double outFloodPeersPercent;
+	private double inFloodPeersPercent;
 	private double defaultQ;
 	private int reconciliationInterval;
 
@@ -37,8 +37,8 @@ public class PeerInitializer implements Control
 		allReconcile = Configuration.getBoolean(prefix + "." + "all_reconcile");
 		if (allReconcile) {
 			reconciliationInterval = Configuration.getInt(prefix + "." + "reconciliation_interval");
-			outFloodPeers = Configuration.getInt(prefix + "." + "out_flood_peers", outPeers);
-			inFloodPeers = Configuration.getInt(prefix + "." + "in_flood_peers");
+			outFloodPeersPercent = Configuration.getDouble(prefix + "." + "out_flood_peers_percent");
+			inFloodPeersPercent = Configuration.getDouble(prefix + "." + "in_flood_peers_percent");
 			defaultQ = Configuration.getDouble(prefix + "." + "default_q");
 		}
 	}
@@ -77,8 +77,8 @@ public class PeerInitializer implements Control
 			if (allReconcile) {
 				((Peer)Network.get(i).getProtocol(pid)).reconcile = true;
 				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
-				((Peer)Network.get(i).getProtocol(pid)).inFloodLimit = inFloodPeers;
-				((Peer)Network.get(i).getProtocol(pid)).outFloodLimit = outFloodPeers;
+				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = inFloodPeersPercent;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = outFloodPeersPercent;
 				((Peer)Network.get(i).getProtocol(pid)).defaultQ = defaultQ;
 			}
 		}
