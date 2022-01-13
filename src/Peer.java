@@ -49,6 +49,7 @@ public class Peer implements CDProtocol, EDProtocol
 	public boolean reconcile = false;
 	public Queue<Node> reconciliationQueue;
 	public long nextRecon = 0;
+	// This variable is used to check if a peer supports reconciliations.
 	private HashMap<Node, HashSet<Integer>> reconSets;
 
 	/* Stats */
@@ -138,7 +139,7 @@ public class Peer implements CDProtocol, EDProtocol
 		if (sender.getID() != 0) {
 			// Came not from source.
 			peerKnowsTxs.get(sender).add(txId);
-			if (reconcile) {
+			if (reconcile && reconSets.containsKey(sender)) {
 				removeFromReconSet(node, txId, sender);
 			}
 		}
@@ -266,7 +267,7 @@ public class Peer implements CDProtocol, EDProtocol
 		if (!peerKnowsTxs.get(recipient).contains(txId)) {
 			peerKnowsTxs.get(recipient).add(txId);
 
-			if (reconcile) {
+			if (reconcile && reconSets.containsKey(recipient)) {
 				if (shouldFlood) {
 					removeFromReconSet(node, txId, recipient);
 				} else {
@@ -304,9 +305,24 @@ public class Peer implements CDProtocol, EDProtocol
 		}
 
 		// Send to inbounds.
+		// First flood to all non-reconciling peers.
+		// Then flood to a random subset of remaining reconciling peers, according to a defined
+		// fraction. For the rest, reconcile.
 		int inboundFloodTargets = (int)(inboundPeers.size() * inFloodLimitPercent / 100);
+		for (Node peer : inboundPeers) {
+			if (!reconSets.containsKey(peer)) { // check for non-reconciling
+				scheduleInv(node, delay, peer, txId, true);
+				if (inboundFloodTargets > 0) inboundFloodTargets--;
+			}
+		}
+
+		// Now flood to a random subset of remaining (reconciling) peers, according to a defined
+		// fraction. For the rest, reconcile.
 		Collections.shuffle(inboundPeers);
 		for (Node peer : inboundPeers) {
+			// Skip non-reconciling peers.
+			if (!reconSets.containsKey(peer)) continue;
+
 			boolean shouldFlood = false;
 			if (inboundFloodTargets > 0) {
 				shouldFlood = true;
@@ -316,9 +332,25 @@ public class Peer implements CDProtocol, EDProtocol
 		}
 
 		// Send to outbounds.
+		// First flood to all non-reconciling peers.
+		// Then flood to a random subset of remaining reconciling peers, according to a defined
+		// fraction. For the rest, reconcile.
 		int outboundFloodTargets = (int)(outboundPeers.size() * outFloodLimitPercent / 100);
+		for (Node peer : outboundPeers) {
+			if (!reconSets.containsKey(peer)) { // check for non-reconciling
+				delay = generateRandomDelay(this.outFloodDelay);
+				scheduleInv(node, delay, peer, txId, true);
+				if (outboundFloodTargets > 0) outboundFloodTargets--;
+			}
+		}
+
+		// Now flood to a random subset of remaining (reconciling) peers, according to a defined
+		// fraction. For the rest, reconcile.
 		Collections.shuffle(outboundPeers);
 		for (Node peer : outboundPeers) {
+			// Skip non-reconciling peers.
+			if (!reconSets.containsKey(peer)) continue;
+
 			delay = generateRandomDelay(this.outFloodDelay);
 			boolean shouldFlood = false;
 			if (outboundFloodTargets > 0) {
@@ -356,7 +388,7 @@ public class Peer implements CDProtocol, EDProtocol
 	}
 
 	// Used for setting up the topology.
-	public void addPeer(Node peer, boolean outbound) {
+	public void addPeer(Node peer, boolean outbound, boolean supportsRecon) {
 		if (outbound) {
 			assert(!outboundPeers.contains(peer));
 			outboundPeers.add(peer);
@@ -365,7 +397,7 @@ public class Peer implements CDProtocol, EDProtocol
 			inboundPeers.add(peer);
 		}
 		peerKnowsTxs.put(peer, new HashSet<>());
-		if (reconcile) {
+		if (reconcile && supportsRecon) {
 			if (outbound) { reconciliationQueue.offer(peer); }
 			reconSets.put(peer, new HashSet<>());
 		}

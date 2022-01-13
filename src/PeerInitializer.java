@@ -16,11 +16,13 @@ public class PeerInitializer implements Control
 	private int reachableCount;
 	private int privateBlackHolesPercent;
 	private int outPeers;
-	private int inFloodDelay;
-	private int outFloodDelay;
+	private int inFloodDelayReconPeer;
+	private int outFloodDelayReconPeer;
+	private int inFloodDelayLegacyPeer;
+	private int outFloodDelayLegacyPeer;
 
-	private boolean allReconcile;
 	// Reconciliation params
+	private int reconcilePercent;
 	private double outFloodPeersPercent;
 	private double inFloodPeersPercent;
 	private double defaultQ;
@@ -30,11 +32,13 @@ public class PeerInitializer implements Control
 		pid = Configuration.getPid(prefix + "." + "protocol");
 		reachableCount = Configuration.getInt(prefix + "." + "reachable_count");
 		outPeers = Configuration.getInt(prefix + "." + "out_peers");
-		inFloodDelay = Configuration.getInt(prefix + "." + "in_flood_delay");
-		outFloodDelay = Configuration.getInt(prefix + "." + "out_flood_delay");
+		inFloodDelayReconPeer = Configuration.getInt(prefix + "." + "in_flood_delay_recon_peer");
+		outFloodDelayReconPeer = Configuration.getInt(prefix + "." + "out_flood_delay_recon_peer");
+		inFloodDelayLegacyPeer = Configuration.getInt(prefix + "." + "in_flood_delay_legacy_peer");
+		outFloodDelayLegacyPeer = Configuration.getInt(prefix + "." + "out_flood_delay_legacy_peer");
 		privateBlackHolesPercent = Configuration.getInt(prefix + "." + "private_black_holes_percent", 0);
-		allReconcile = Configuration.getBoolean(prefix + "." + "all_reconcile");
-		if (allReconcile) {
+		reconcilePercent = Configuration.getInt(prefix + "." + "reconcile_percent");
+		if (reconcilePercent > 0) {
 			reconciliationInterval = Configuration.getInt(prefix + "." + "reconciliation_interval");
 			defaultQ = Configuration.getDouble(prefix + "." + "default_q");
 			outFloodPeersPercent = Configuration.getDouble(prefix + "." + "out_flood_peers_percent");
@@ -66,22 +70,29 @@ public class PeerInitializer implements Control
 		}
 		System.err.println("Black holes: " + privateBlackHolesCount);
 
+		int reconcilingNodes = Network.size() * reconcilePercent / 100;
 		// A list storing who is already connected to who, so that we don't make duplicate conns.
 		HashMap<Integer, HashSet<Integer>> peers = new HashMap<>();
 		for (int i = 1; i < Network.size(); i++) {
 			peers.put(i, new HashSet<>());
 			// Initial parameters setting for all nodes.
-			((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelay;
-			((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelay;
-			if (allReconcile) {
-				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = inFloodPeersPercent;
-				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = outFloodPeersPercent;
+
+			if (reconcilingNodes > 0) {
+				reconcilingNodes--;
 				((Peer)Network.get(i).getProtocol(pid)).reconcile = true;
 				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
+				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = inFloodPeersPercent;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = outFloodPeersPercent;
+				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
 				((Peer)Network.get(i).getProtocol(pid)).defaultQ = defaultQ;
+				((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelayReconPeer;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelayReconPeer;
 			} else {
+				((Peer)Network.get(i).getProtocol(pid)).reconcile = false;
 				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = 100;
 				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = 100;
+				((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelayLegacyPeer;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelayLegacyPeer;
 			}
 		}
 
@@ -96,8 +107,9 @@ public class PeerInitializer implements Control
 				}
 
 				Node randomNode = Network.get(randomNodeIndex);
+				Peer randomNodeState = ((Peer)Network.get(randomNodeIndex).getProtocol(pid));
 
-				if (!((Peer)randomNode.getProtocol(pid)).isReachable) {
+				if (!randomNodeState.isReachable) {
 					continue;
 				}
 				if (peers.get(i).contains(randomNodeIndex) || peers.get(randomNodeIndex).contains(i)) {
@@ -108,8 +120,9 @@ public class PeerInitializer implements Control
 				peers.get(randomNodeIndex).add(i);
 
 				// Actual connecting.
-				((Peer)curNode.getProtocol(pid)).addPeer(randomNode, true);
-				((Peer)randomNode.getProtocol(pid)).addPeer(curNode, false);
+				boolean curNodeSupportsRecon = ((Peer)Network.get(i).getProtocol(pid)).reconcile;
+				((Peer)curNode.getProtocol(pid)).addPeer(randomNode, true, randomNodeState.reconcile);
+				((Peer)randomNode.getProtocol(pid)).addPeer(curNode, false, curNodeSupportsRecon);
 				++conns;
 			}
 		}

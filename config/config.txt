@@ -50,12 +50,16 @@ init.2 txrelaysim.src.PeerInitializer
 init.2.protocol 2
 init.2.out_peers 8
 init.2.reachable_count 1500
-init.2.in_flood_delay 2000
-init.2.out_flood_delay 1000
-init.2.all_reconcile true
-init.2.reconciliation_interval 1000
-init.2.in_flood_peers_percent 10
-init.2.out_flood_peers_percent 10
+# Delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
+init.2.in_flood_delay_legacy_peer 5000
+init.2.out_flood_delay_legacy_peer 2000
+# Delays applied by reconciling nodes when relaying transactions (to inbounds and outbounds)
+init.2.in_flood_delay_recon_peer 5000
+init.2.out_flood_delay_recon_peer 2000
+init.2.reconcile_percent 0
+init.2.reconciliation_interval 8000
+init.2.in_flood_peers_percent 100
+init.2.out_flood_peers_percent 100
 init.2.default_q 0.25
 init.2.private_black_holes_percent = 0
 
