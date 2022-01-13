@@ -358,10 +358,10 @@ public class Peer implements CDProtocol, EDProtocol
 	// Used for setting up the topology.
 	public void addPeer(Node peer, boolean outbound) {
 		if (outbound) {
-			if (outboundPeers.contains(peer)) return;
+			assert(!outboundPeers.contains(peer));
 			outboundPeers.add(peer);
 		} else {
-			if (inboundPeers.contains(peer)) return;
+			assert(!inboundPeers.contains(peer));
 			inboundPeers.add(peer);
 		}
 		peerKnowsTxs.put(peer, new HashSet<>());
