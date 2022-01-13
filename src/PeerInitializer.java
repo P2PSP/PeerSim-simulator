@@ -32,14 +32,13 @@ public class PeerInitializer implements Control
 		outPeers = Configuration.getInt(prefix + "." + "out_peers");
 		inFloodDelay = Configuration.getInt(prefix + "." + "in_flood_delay");
 		outFloodDelay = Configuration.getInt(prefix + "." + "out_flood_delay");
-
 		privateBlackHolesPercent = Configuration.getInt(prefix + "." + "private_black_holes_percent", 0);
 		allReconcile = Configuration.getBoolean(prefix + "." + "all_reconcile");
 		if (allReconcile) {
 			reconciliationInterval = Configuration.getInt(prefix + "." + "reconciliation_interval");
+			defaultQ = Configuration.getDouble(prefix + "." + "default_q");
 			outFloodPeersPercent = Configuration.getDouble(prefix + "." + "out_flood_peers_percent");
 			inFloodPeersPercent = Configuration.getDouble(prefix + "." + "in_flood_peers_percent");
-			defaultQ = Configuration.getDouble(prefix + "." + "default_q");
 		}
 	}
 
@@ -75,11 +74,14 @@ public class PeerInitializer implements Control
 			((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelay;
 			((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelay;
 			if (allReconcile) {
-				((Peer)Network.get(i).getProtocol(pid)).reconcile = true;
-				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
 				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = inFloodPeersPercent;
 				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = outFloodPeersPercent;
+				((Peer)Network.get(i).getProtocol(pid)).reconcile = true;
+				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
 				((Peer)Network.get(i).getProtocol(pid)).defaultQ = defaultQ;
+			} else {
+				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = 100;
+				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = 100;
 			}
 		}
 
@@ -106,8 +108,8 @@ public class PeerInitializer implements Control
 				peers.get(randomNodeIndex).add(i);
 
 				// Actual connecting.
-				((Peer)curNode.getProtocol(pid)).addOutboundPeer(randomNode);
-				((Peer)randomNode.getProtocol(pid)).addInboundPeer(curNode);
+				((Peer)curNode.getProtocol(pid)).addPeer(randomNode, true);
+				((Peer)randomNode.getProtocol(pid)).addPeer(curNode, false);
 				++conns;
 			}
 		}
