@@ -88,7 +88,7 @@ public class Peer implements CDProtocol, EDProtocol
 
 				// Move this node to the end of the queue, schedule the next reconciliation.
 				reconciliationQueue.offer(recipient);
-				nextRecon = curTime + reconciliationInterval;
+				nextRecon = curTime + (reconciliationInterval / reconciliationQueue.size());
 			}
 		}
 	}
