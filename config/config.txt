@@ -1,16 +1,11 @@
-# parameters of periodic execution
-# CYCLES * CYCLE = how many milliseconds the experiment would take
-# Note that the source stops issuing transactions 25 seconds before the end,
-# to let everything propagate fully.
+#### All the Erlay-specific configurations are in the "ERLAY" section above.
+#### Everything else is irrelevant framework-related stuff (apart from the network.size parameter,
+#### which might be interesting to adjust).
+
 CYCLES 600
 CYCLE 100 # milliseconds
-
-# parameters of message transfer
-# delay values here are relative to cycle length, in percentage,
-# eg 50 means half the cycle length, 200 twice the cycle length, etc.
 MINDELAY 5
 MAXDELAY 100
-# drop is a probability, 0<=DROP<=1
 DROP 0
 
 random.seed 9098797865656766578567
@@ -46,22 +41,34 @@ init.1 txrelaysim.src.SourceInitializer
 init.1.protocol 1
 init.1.tps 7
 
+############### ERLAY #####################
 init.2 txrelaysim.src.PeerInitializer
 init.2.protocol 2
+# How many outbound connections legacy (flooding) nodes make
 init.2.out_peers_legacy 8
+# How many outbound connections erlay (reconciling) nodes make
 init.2.out_peers_recon 8
+# How many reachable nodes we have in the network (total nodes is above called `network.size`)
 init.2.reachable_count 1500
-# Delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
+# Poisson delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
 init.2.in_flood_delay_legacy_peer 5000
 init.2.out_flood_delay_legacy_peer 2000
-# Delays applied by reconciling nodes when relaying transactions (to inbounds and outbounds)
+# Poisson delays applied by erlay nodes when relaying transactions (to inbounds and outbounds)
 init.2.in_flood_delay_recon_peer 4000
 init.2.out_flood_delay_recon_peer 1500
-init.2.reconcile_percent 50
+# Fraction of all nodes that support reconciliation
+init.2.reconcile_percent 25
+# Intervals between reconciliations with a given peer (Alice reconciles with Bob every 8 seconds)
 init.2.reconciliation_interval 8000
-init.2.in_flood_peers_percent 10
-init.2.out_flood_peers_percent 10
+# For erlay nodes, to how many in/out peers they have they will flood.
+# First, they flood to all legacy peers. Then, if the specified % is not reached, they pick random
+# peers among the remaining (erlay) peers, and flood to them. To the rest, they reconcile. This
+# choice is made per-transaction.
+init.2.in_flood_peers_percent 15
+init.2.out_flood_peers_percent 20
+# A coefficient for set difference estimation (used in Erlay)
 init.2.default_q 0.25
+# How many of the nodes are black holes
 init.2.private_black_holes_percent = 0
 
 init.sch1 CDScheduler
