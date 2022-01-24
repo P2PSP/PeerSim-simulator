@@ -48,7 +48,8 @@ init.1.tps 7
 
 init.2 txrelaysim.src.PeerInitializer
 init.2.protocol 2
-init.2.out_peers 8
+init.2.out_peers_legacy 8
+init.2.out_peers_recon 8
 init.2.reachable_count 1500
 # Delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
 init.2.in_flood_delay_legacy_peer 5000

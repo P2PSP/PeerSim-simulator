@@ -15,7 +15,8 @@ public class PeerInitializer implements Control
 	private int pid;
 	private int reachableCount;
 	private int privateBlackHolesPercent;
-	private int outPeers;
+	private int outPeersLegacy;
+	private int outPeersRecon;
 	private int inFloodDelayReconPeer;
 	private int outFloodDelayReconPeer;
 	private int inFloodDelayLegacyPeer;
@@ -31,7 +32,8 @@ public class PeerInitializer implements Control
 	public PeerInitializer(String prefix) {
 		pid = Configuration.getPid(prefix + "." + "protocol");
 		reachableCount = Configuration.getInt(prefix + "." + "reachable_count");
-		outPeers = Configuration.getInt(prefix + "." + "out_peers");
+		outPeersLegacy = Configuration.getInt(prefix + "." + "out_peers_legacy");
+		outPeersRecon = Configuration.getInt(prefix + "." + "out_peers_recon");
 		inFloodDelayReconPeer = Configuration.getInt(prefix + "." + "in_flood_delay_recon_peer");
 		outFloodDelayReconPeer = Configuration.getInt(prefix + "." + "out_flood_delay_recon_peer");
 		inFloodDelayLegacyPeer = Configuration.getInt(prefix + "." + "in_flood_delay_legacy_peer");
@@ -99,8 +101,13 @@ public class PeerInitializer implements Control
 		// Connect all nodes to a limited number of reachable nodes.
 		for(int i = 1; i < Network.size(); i++) {
 			Node curNode = Network.get(i);
-			int conns = 0;
-			while (conns < outPeers) {
+			int connsTarget;
+			if (((Peer)curNode.getProtocol(pid)).reconcile) {
+				connsTarget = outPeersRecon;
+			} else {
+				connsTarget = outPeersLegacy;
+			}
+			while (connsTarget > 0) {
 				int randomNodeIndex = CommonState.r.nextInt(Network.size() - 1) + 1;
 				if (randomNodeIndex == i) {
 					continue;
@@ -123,7 +130,7 @@ public class PeerInitializer implements Control
 				boolean curNodeSupportsRecon = ((Peer)Network.get(i).getProtocol(pid)).reconcile;
 				((Peer)curNode.getProtocol(pid)).addPeer(randomNode, true, randomNodeState.reconcile);
 				((Peer)randomNode.getProtocol(pid)).addPeer(curNode, false, curNodeSupportsRecon);
-				++conns;
+				--connsTarget;
 			}
 		}
 
