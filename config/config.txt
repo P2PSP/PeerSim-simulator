@@ -51,23 +51,23 @@ init.2.out_peers_recon 8
 # How many reachable nodes we have in the network (total nodes is above called `network.size`)
 init.2.reachable_count 1500
 # Poisson delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
-init.2.in_flood_delay_legacy_peer 5000
-init.2.out_flood_delay_legacy_peer 2000
+init.2.in_relay_delay_legacy_peer 5000
+init.2.out_relay_delay_legacy_peer 2000
 # Poisson delays applied by erlay nodes when relaying transactions (to inbounds and outbounds)
-init.2.in_flood_delay_recon_peer 4000
-init.2.out_flood_delay_recon_peer 1500
+init.2.in_relay_delay_recon_peer 0
+init.2.out_relay_delay_recon_peer 0
 # Fraction of all nodes that support reconciliation
-init.2.reconcile_percent 25
+init.2.reconcile_percent 100
 # Intervals between reconciliations with a given peer (Alice reconciles with Bob every 8 seconds)
-init.2.reconciliation_interval 8000
+init.2.reconciliation_interval 16000
 # For erlay nodes, to how many in/out peers they have they will flood.
 # First, they flood to all legacy peers. Then, if the specified % is not reached, they pick random
 # peers among the remaining (erlay) peers, and flood to them. To the rest, they reconcile. This
 # choice is made per-transaction.
-init.2.in_flood_peers_percent 15
-init.2.out_flood_peers_percent 20
+init.2.in_flood_peers_percent 0
+init.2.out_flood_peers_percent 0
 # A coefficient for set difference estimation (used in Erlay)
-init.2.default_q 0.1
+init.2.default_q 0.25
 # How many of the nodes are black holes
 init.2.private_black_holes_percent = 0
 

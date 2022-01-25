@@ -17,10 +17,10 @@ public class PeerInitializer implements Control
 	private int privateBlackHolesPercent;
 	private int outPeersLegacy;
 	private int outPeersRecon;
-	private int inFloodDelayReconPeer;
-	private int outFloodDelayReconPeer;
-	private int inFloodDelayLegacyPeer;
-	private int outFloodDelayLegacyPeer;
+	private int inRelayDelayReconPeer;
+	private int outRelayDelayReconPeer;
+	private int inRelayDelayLegacyPeer;
+	private int outRelayDelayLegacyPeer;
 
 	// Reconciliation params
 	private int reconcilePercent;
@@ -34,10 +34,10 @@ public class PeerInitializer implements Control
 		reachableCount = Configuration.getInt(prefix + "." + "reachable_count");
 		outPeersLegacy = Configuration.getInt(prefix + "." + "out_peers_legacy");
 		outPeersRecon = Configuration.getInt(prefix + "." + "out_peers_recon");
-		inFloodDelayReconPeer = Configuration.getInt(prefix + "." + "in_flood_delay_recon_peer");
-		outFloodDelayReconPeer = Configuration.getInt(prefix + "." + "out_flood_delay_recon_peer");
-		inFloodDelayLegacyPeer = Configuration.getInt(prefix + "." + "in_flood_delay_legacy_peer");
-		outFloodDelayLegacyPeer = Configuration.getInt(prefix + "." + "out_flood_delay_legacy_peer");
+		inRelayDelayReconPeer = Configuration.getInt(prefix + "." + "in_relay_delay_recon_peer");
+		outRelayDelayReconPeer = Configuration.getInt(prefix + "." + "out_relay_delay_recon_peer");
+		inRelayDelayLegacyPeer = Configuration.getInt(prefix + "." + "in_relay_delay_legacy_peer");
+		outRelayDelayLegacyPeer = Configuration.getInt(prefix + "." + "out_relay_delay_legacy_peer");
 		privateBlackHolesPercent = Configuration.getInt(prefix + "." + "private_black_holes_percent", 0);
 		reconcilePercent = Configuration.getInt(prefix + "." + "reconcile_percent");
 		if (reconcilePercent > 0) {
@@ -87,14 +87,14 @@ public class PeerInitializer implements Control
 				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = outFloodPeersPercent;
 				((Peer)Network.get(i).getProtocol(pid)).reconciliationInterval = reconciliationInterval;
 				((Peer)Network.get(i).getProtocol(pid)).defaultQ = defaultQ;
-				((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelayReconPeer;
-				((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelayReconPeer;
+				((Peer)Network.get(i).getProtocol(pid)).inRelayDelay = inRelayDelayReconPeer;
+				((Peer)Network.get(i).getProtocol(pid)).outRelayDelay = outRelayDelayReconPeer;
 			} else {
 				((Peer)Network.get(i).getProtocol(pid)).reconcile = false;
 				((Peer)Network.get(i).getProtocol(pid)).inFloodLimitPercent = 100;
 				((Peer)Network.get(i).getProtocol(pid)).outFloodLimitPercent = 100;
-				((Peer)Network.get(i).getProtocol(pid)).inFloodDelay = inFloodDelayLegacyPeer;
-				((Peer)Network.get(i).getProtocol(pid)).outFloodDelay = outFloodDelayLegacyPeer;
+				((Peer)Network.get(i).getProtocol(pid)).inRelayDelay = inRelayDelayLegacyPeer;
+				((Peer)Network.get(i).getProtocol(pid)).outRelayDelay = outRelayDelayLegacyPeer;
 			}
 		}
 

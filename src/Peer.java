@@ -32,8 +32,8 @@ public class Peer implements CDProtocol, EDProtocol
 	public double inFloodLimitPercent;
 	public double outFloodLimitPercent;
 	public int reconciliationInterval;
-	public int inFloodDelay;
-	public int outFloodDelay;
+	public int inRelayDelay;
+	public int outRelayDelay;
 	public double defaultQ;
 
 	/* State */
@@ -298,7 +298,7 @@ public class Peer implements CDProtocol, EDProtocol
 		long delay;
 		long curTime = CommonState.getTime();
 		if (nextFloodInbound < curTime) {
-			nextFloodInbound = curTime + generateRandomDelay(this.inFloodDelay);
+			nextFloodInbound = curTime + generateRandomDelay(this.inRelayDelay);
 			delay = 0;
 		} else {
 			delay = nextFloodInbound - curTime;
@@ -308,54 +308,60 @@ public class Peer implements CDProtocol, EDProtocol
 		// First flood to all non-reconciling peers.
 		// Then flood to a random subset of remaining reconciling peers, according to a defined
 		// fraction. For the rest, reconcile.
-		int inboundFloodTargets = (int)(inboundPeers.size() * inFloodLimitPercent / 100);
+		int flooded = 0;
 		for (Node peer : inboundPeers) {
 			if (!reconSets.containsKey(peer)) { // check for non-reconciling
 				scheduleInv(node, delay, peer, txId, true);
-				if (inboundFloodTargets > 0) inboundFloodTargets--;
+				flooded++;
 			}
 		}
 
+		double alreadyFloodedPercent, remainsToFloodPercent;
+		Random randomNum = new Random();
 		// Now flood to a random subset of remaining (reconciling) peers, according to a defined
 		// fraction. For the rest, reconcile.
-		Collections.shuffle(inboundPeers);
-		for (Node peer : inboundPeers) {
-			// Skip non-reconciling peers.
-			if (!reconSets.containsKey(peer)) continue;
+		if (inboundPeers.size() > 0) {
+			alreadyFloodedPercent = flooded * 100.0 / inboundPeers.size();
+			// We will flip a coin for the sake of randomness -> privacy every time.
+			remainsToFloodPercent = inFloodLimitPercent - alreadyFloodedPercent;
+			Collections.shuffle(inboundPeers);
+			for (Node peer : inboundPeers) {
+				// Skip non-reconciling peers.
+				if (!reconSets.containsKey(peer)) continue;
 
-			boolean shouldFlood = false;
-			if (inboundFloodTargets > 0) {
-				shouldFlood = true;
-				inboundFloodTargets--;
+				boolean shouldFlood = false;
+				if (randomNum.nextInt(100) < remainsToFloodPercent) {
+					shouldFlood = true;
+				}
+				scheduleInv(node, delay, peer, txId, shouldFlood);
 			}
-			scheduleInv(node, delay, peer, txId, shouldFlood);
 		}
 
 		// Send to outbounds.
 		// First flood to all non-reconciling peers.
-		// Then flood to a random subset of remaining reconciling peers, according to a defined
-		// fraction. For the rest, reconcile.
-		int outboundFloodTargets = (int)(outboundPeers.size() * outFloodLimitPercent / 100);
+		flooded = 0;
 		for (Node peer : outboundPeers) {
 			if (!reconSets.containsKey(peer)) { // check for non-reconciling
-				delay = generateRandomDelay(this.outFloodDelay);
+				delay = generateRandomDelay(this.outRelayDelay);
 				scheduleInv(node, delay, peer, txId, true);
-				if (outboundFloodTargets > 0) outboundFloodTargets--;
+				flooded++;
 			}
 		}
 
 		// Now flood to a random subset of remaining (reconciling) peers, according to a defined
 		// fraction. For the rest, reconcile.
+		alreadyFloodedPercent = flooded * 100.0 / outboundPeers.size();
+		// We will flip a coin for the sake of randomness -> privacy every time.
+		remainsToFloodPercent = outFloodLimitPercent - alreadyFloodedPercent;
 		Collections.shuffle(outboundPeers);
 		for (Node peer : outboundPeers) {
 			// Skip non-reconciling peers.
 			if (!reconSets.containsKey(peer)) continue;
 
-			delay = generateRandomDelay(this.outFloodDelay);
+			delay = generateRandomDelay(this.outRelayDelay);
 			boolean shouldFlood = false;
-			if (outboundFloodTargets > 0) {
+			if (randomNum.nextInt(100) < remainsToFloodPercent) {
 				shouldFlood = true;
-				outboundFloodTargets--;
 			}
 			scheduleInv(node, delay, peer, txId, shouldFlood);
 		}
