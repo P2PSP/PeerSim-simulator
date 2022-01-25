@@ -214,7 +214,7 @@ public class Peer implements CDProtocol, EDProtocol
 		int localSetSize = localSet.size();
 		int remoteSetSize = remoteSet.size();
 		// TODO: Q could be dynamicly updated after each reconciliation.
-		int capacity = Math.abs(localSetSize - remoteSetSize) + (int)(defaultQ * (localSetSize + remoteSetSize)) + 1;
+		int capacity = Math.abs(localSetSize - remoteSetSize) + (int)(defaultQ * Math.min(localSetSize, remoteSetSize)) + 1;
 		if (capacity > diff) {
 			// Reconciliation succeeded right away.
 			successRecons++;

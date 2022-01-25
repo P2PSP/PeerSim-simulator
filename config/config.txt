@@ -67,7 +67,7 @@ init.2.reconciliation_interval 8000
 init.2.in_flood_peers_percent 15
 init.2.out_flood_peers_percent 20
 # A coefficient for set difference estimation (used in Erlay)
-init.2.default_q 0.25
+init.2.default_q 0.1
 # How many of the nodes are black holes
 init.2.private_black_holes_percent = 0
 
