@@ -1,35 +1,29 @@
-# network size
-SIZE 10
+#### All the Erlay-specific configurations are in the "ERLAY" section above.
+#### Everything else is irrelevant framework-related stuff (apart from the network.size parameter,
+#### which might be interesting to adjust).
 
-# parameters of periodic execution
-CYCLES 200
-CYCLE SIZE*10
-
-# parameters of message transfer
-# delay values here are relative to cycle length, in percentage,
-# eg 50 means half the cycle length, 200 twice the cycle length, etc.
+CYCLES 600
+CYCLE 100 # milliseconds
 MINDELAY 5
-MAXDELAY 50
-# drop is a probability, 0<=DROP<=1
+MAXDELAY 100
 DROP 0
 
 random.seed 9098797865656766578567
-network.size SIZE
+network.size 15000
 simulation.endtime CYCLE*CYCLES
-simulation.logtime CYCLE
-simulation.experiments 1000
+simulation.logtime CYCLE * 50
+simulation.experiments 1
 
 ################### protocols ===========================
 protocol.0 peersim.core.IdleProtocol
 protocol.0.step CYCLE
 
-protocol.1 sim.src.Source
+protocol.1 txrelaysim.src.Source
 protocol.1.linkable 0
-protocol.1.step CYCLE
+protocol.1.step 1000 # trigger every seconds to handle tps easier
 protocol.1.transport tr
 
-protocol.2 sim.src.Peer
-protocol.2.buffer_size 32
+protocol.2 txrelaysim.src.Peer
 protocol.2.linkable 0
 protocol.2.step CYCLE
 protocol.2.transport tr
@@ -43,13 +37,39 @@ protocol.tr.transport urt
 protocol.tr.drop DROP
 
 ################### initialization ======================
-init.1 sim.src.SourceInitializer
+init.1 txrelaysim.src.SourceInitializer
 init.1.protocol 1
+init.1.tps 7
 
-init.2 sim.src.PeerInitializer
+############### ERLAY #####################
+init.2 txrelaysim.src.PeerInitializer
 init.2.protocol 2
-init.2.malicious_count 1
-init.2.trusted_count 1
+# How many outbound connections legacy (flooding) nodes make
+init.2.out_peers_legacy 8
+# How many outbound connections erlay (reconciling) nodes make
+init.2.out_peers_recon 8
+# How many reachable nodes we have in the network (total nodes is above called `network.size`)
+init.2.reachable_count 1500
+# Poisson delays applied by legacy nodes when relaying transactions (to inbounds and outbounds)
+init.2.in_relay_delay_legacy_peer 5000
+init.2.out_relay_delay_legacy_peer 2000
+# Poisson delays applied by erlay nodes when relaying transactions (to inbounds and outbounds)
+init.2.in_relay_delay_recon_peer 0
+init.2.out_relay_delay_recon_peer 0
+# Fraction of all nodes that support reconciliation
+init.2.reconcile_percent 100
+# Intervals between reconciliations with a given peer (Alice reconciles with Bob every 8 seconds)
+init.2.reconciliation_interval 16000
+# For erlay nodes, to how many in/out peers they have they will flood.
+# First, they flood to all legacy peers. Then, if the specified % is not reached, they pick random
+# peers among the remaining (erlay) peers, and flood to them. To the rest, they reconcile. This
+# choice is made per-transaction.
+init.2.in_flood_peers_percent 0
+init.2.out_flood_peers_percent 0
+# A coefficient for set difference estimation (used in Erlay)
+init.2.default_q 0.25
+# How many of the nodes are black holes
+init.2.private_black_holes_percent = 0
 
 init.sch1 CDScheduler
 init.sch1.protocol 1
@@ -59,13 +79,9 @@ init.sch2 CDScheduler
 init.sch2.protocol 2
 init.sch2.randstart
 
-
 ################ control ==============================
 
-#control.0 sim.src.PeerObserver
-#control.0.protocol 2
-#control.0.step CYCLE*1
+control.0 txrelaysim.src.InvObserver
+control.0.protocol 2
+control.0.step CYCLE * 100
 
-control.1 sim.src.PoisonedChunksObserver
-control.1.protocol 2
-control.1.step CYCLE*1

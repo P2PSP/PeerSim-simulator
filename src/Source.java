@@ -1,11 +1,15 @@
-package sim.src;
+package txrelaysim.src;
+
+import txrelaysim.src.helpers.*;
 
 import java.util.ArrayList;
 
 import peersim.cdsim.CDProtocol;
 import peersim.config.FastConfig;
+import peersim.config.Configuration;
 import peersim.core.Network;
 import peersim.core.Node;
+import peersim.core.CommonState;
 import peersim.edsim.EDProtocol;
 import peersim.edsim.EDSimulator;
 import peersim.transport.Transport;
@@ -13,129 +17,52 @@ import peersim.transport.Transport;
 
 public class Source implements CDProtocol, EDProtocol
 {
-	public static  int pidSource;
-	
+	public static int pidSource;
+	public static int tps;
+
 	public boolean isSource = false;
-	private int packetIndex = 1;
-	private int recipientIndex = 1;
-	private int cycle = 1;
-	private ArrayList<Neighbor> peerList;
-	
+	public int txId = 0;
+	private ArrayList<Node> peerList;
+
 	public Source(String prefix) {
-		this.peerList = new ArrayList<Neighbor>();
+		this.peerList = new ArrayList<>();
 	}
-	
+
 	@Override
 	public void nextCycle(Node node, int pid) {
 		Node recipient;
 		int nextNodeIndex;
-		
-		if(isSource == false)
-			return;
-		
-		if (peerList.size() > 0) {
-			if (recipientIndex >= peerList.size()) {
-				recipientIndex = 0;
-			}
-			recipient = peerList.get(recipientIndex).getNode();
-			//next node in the list
-			nextNodeIndex = (recipientIndex+1) % peerList.size();
-			
-			//send packet to this node, with nextNodeIndex in the resendTo field
-			IntMessage chunkMessage = new IntMessage(SimpleEvent.CHUNK, node, packetIndex);
-			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, chunkMessage, Peer.pidPeer);
-			
-			//for next cycle
-			packetIndex++;
-			recipientIndex = nextNodeIndex;
-		}
-		cycle++;
-	}
 
-	/*
-	 * Returns the regular peer with absolute index "index"
-	 */
-	public Peer getPeer(int index) {
-		Node node = Network.get(index);
-		//look for the Peer protocol
-		for(int p = 0; p < node.protocolSize(); p++)
-		{
-			if(node.getProtocol(p) instanceof Peer)
-				return (Peer)node.getProtocol(p);
+		if (isSource == false)
+			return;
+
+		if (CommonState.getEndTime() < CommonState.getTime() + 40 * 1000) {
+			// if the experiment is over soon, stop issuing transactions and let existing propagate.
+			return;
 		}
-		
-		return null;		
-	}
-	
-	public Object clone() {
-		return new Source("");
+
+		int randomNumberOfTxs = CommonState.r.nextInt(this.tps * 2); // anything from 0 to tps * 2.
+
+		for (int i = 0; i < randomNumberOfTxs; ++i) {
+			txId++;
+			int randomRecipientIndex = CommonState.r.nextInt(peerList.size() - 1) + 1;
+			recipient = peerList.get(randomRecipientIndex);
+			IntMessage inv = new IntMessage(SimpleEvent.INV, node, txId);
+			((Transport)recipient.getProtocol(FastConfig.getTransport(pid))).send(node, recipient, inv, Peer.pidPeer);
+		}
 	}
 
 	@Override
 	public void processEvent(Node node, int pid, Object event) {
-		SimpleEvent castedEvent = (SimpleEvent)event;
-		switch (castedEvent.getType()) {
-		case SimpleEvent.HELLO:
-			processHelloMessage(node, pid, (SimpleMessage)castedEvent);
-			break;
-		case SimpleEvent.GOODBYE:
-			processGoodbyeMessage(node, pid, (SimpleMessage)castedEvent);
-			break;
-		case SimpleEvent.CHUNK_CHECK:
-			processChunkCheckMessage(node, pid, (TupleMessage)castedEvent);
-		}
+		return;
 	}
-	
-	private void processHelloMessage(Node node, int pid, SimpleMessage receivedMessage) {
-		ArrayList<Neighbor> clone = new ArrayList<Neighbor>();
-		synchronized (this.peerList) {
-			for (Neighbor peer : this.peerList) {
-				clone.add(peer);
-			}
-		}
-		ArrayListMessage<Neighbor> message = new ArrayListMessage<Neighbor>(SimpleEvent.PEERLIST, node, clone);
-		Node sender = receivedMessage.getSender();
-		
-		long latency = message.getLatency(sender, pid);
-		EDSimulator.add(latency, message, sender, Peer.pidPeer);
-		
-		peerList.add(new Neighbor(receivedMessage.getSender()));
+
+	public Object clone() {
+		return new Source("");
 	}
-	
-	private void processGoodbyeMessage(Node node, int pid, SimpleMessage receivedMessage) {
-		Neighbor peerToRemove = null;
-		for (Neighbor peer : peerList) {
-			if (peer.getNode().getID() == receivedMessage.getSender().getID()) {
-				peerToRemove = peer;
-				break;
-			}
-		}
-		if (peerToRemove != null) {
-			peerList.remove(peerToRemove);
-		}
+
+	public void addPeer(Node peer) {
+		peerList.add(peer);
 	}
-	
-	private void processChunkCheckMessage(Node node, int pid, TupleMessage receivedMessage) {
-		int chunkNum = receivedMessage.getY();
-		if (chunkNum < 0) { // poisoned chunk
-			removeNeighbor(receivedMessage.getX());
-			IntMessage badPeerMessage = new IntMessage(SimpleEvent.BAD_PEER, node, receivedMessage.getX());
-			for (Neighbor peer : peerList) {
-				long latency = badPeerMessage.getLatency(peer.getNode(), pid);
-				EDSimulator.add(latency, badPeerMessage, peer.getNode(), Peer.pidPeer);
-			}
-		}
-	}
-	
-	private void removeNeighbor(int index) {
-		Neighbor toRemove = null;
-		for (Neighbor peer : peerList) {
-			if (peer.getNode().getIndex() == index) {
-				toRemove = peer;
-				break;
-			}
-		}
-		peerList.remove(toRemove);
-	}
-	
+
 }
